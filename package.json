@@ -1,0 +1,19 @@
+{
+  "name": "goblivion",
+  "version": "0.1.0",
+  "description": "Portage numérique solo du jeu de société Goblivion (Definitive Edition)",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node outils/serveur-dev.js",
+    "test": "node --test",
+    "check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "typescript": "^7.0.2"
+  }
+}

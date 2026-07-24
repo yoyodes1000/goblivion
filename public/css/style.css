@@ -1,0 +1,33 @@
+/* Feuille de style minimale du squelette. Compatible thèmes clair et sombre. */
+
+:root {
+  color-scheme: light dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  font-family: system-ui, sans-serif;
+  line-height: 1.5;
+}
+
+.jeu {
+  padding: 2rem;
+  text-align: center;
+}
+
+.etat {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.aide {
+  opacity: 0.6;
+  font-size: 0.9rem;
+}
