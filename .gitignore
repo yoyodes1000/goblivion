@@ -1,0 +1,28 @@
+# --- Livrets de règles : sous droits (Goblivion Games), usage LOCAL uniquement ---
+# Ne jamais publier sur ce dépôt public. Voir docs/regles/goblivion/SOURCES.md.
+# (SOURCES.md, en .md, reste suivi : c'est de la provenance, pas les règles.)
+docs/regles/**/*.pdf
+docs/regles/**/*.txt
+
+# --- Dépendances ---
+node_modules/
+
+# --- Build / sortie / couverture ---
+dist/
+build/
+coverage/
+
+# --- Secrets / environnement ---
+.env
+.env.*
+!.env.example
+
+# --- Logs ---
+*.log
+npm-debug.log*
+yarn-error.log*
+
+# --- OS / éditeurs ---
+.DS_Store
+Thumbs.db
+.idea/
