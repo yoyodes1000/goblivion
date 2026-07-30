@@ -60,9 +60,20 @@
  */
 
 /**
- * Réunion des cartes alliées « jouables » (Paysan de base + Doré) : ce qui peut
- * se retrouver en jeu, à l'Hôpital ou comme Garde du corps.
- * @typedef {import('./paysans-base.js').CartePaysanBase | import('./dores.js').CarteDore} CarteAlliee
+ * Carte Objet obtenue en récompense d'un combat, normalisée pour devenir jouable
+ * (elle passe par l'Hôpital puis en jeu). `id` est dérivé du nom.
+ * @typedef {object} CarteObjet
+ * @property {string} id
+ * @property {string} nom
+ * @property {Symbole} symbole
+ * @property {number | "VARIABLE"} force
+ * @property {Action[]} actions
+ */
+
+/**
+ * Réunion des cartes alliées « jouables » (Paysan de base, Doré ou Objet
+ * récompense) : ce qui peut se retrouver en jeu, à l'Hôpital ou comme Garde du corps.
+ * @typedef {import('./paysans-base.js').CartePaysanBase | import('./dores.js').CarteDore | CarteObjet} CarteAlliee
  */
 
 export {};

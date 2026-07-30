@@ -21,10 +21,12 @@ import { phaseSuivante } from './phases.js';
  */
 
 /**
- * Un ennemi présent sur la piste, avec son état de révélation.
+ * Un ennemi présent sur la piste ou aux Portes, avec son état de révélation et
+ * son éventuel jeton bonus de force.
  * @typedef {object} EnnemiSurPiste
  * @property {InstanceEnnemi} instance
  * @property {boolean} revele
+ * @property {number} jetonBonus   Jeton bonus de force sur l'ennemi (0/1/2 ; un seul maximum).
  */
 
 /**

@@ -33,7 +33,7 @@ export function avancerEnnemis(partie) {
   let case1 = null;
   if (pileEnnemi.length > 0) {
     const instance = /** @type {InstanceEnnemi} */ (pileEnnemi.shift());
-    case1 = { instance, revele: false };
+    case1 = { instance, revele: false, jetonBonus: 0 };
   }
 
   // 2. Glissement d'une case vers les Portes (index 0 → 1 → 2 → 3).
