@@ -82,3 +82,8 @@ test('avancerPhase réinitialise l’échange du Garde du corps', () => {
   const p = { ...partieTest('NORMAL'), gardeDuCorpsEchange: true };
   assert.equal(avancerPhase(p).gardeDuCorpsEchange, false);
 });
+
+test('avancerPhase réinitialise les cartes activées (Pivoter)', () => {
+  const p = { ...partieTest('NORMAL'), cartesActivees: ['a#x', 'b#x'] };
+  assert.deepEqual(avancerPhase(p).cartesActivees, []);
+});

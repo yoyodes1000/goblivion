@@ -75,3 +75,11 @@ test('échange du Garde du corps : refusé si la carte n’est pas dans le Champ
   const p = partieNeuve();
   assert.throws(() => echangerGardeDuCorps(p, 'inconnue#x'), /absente du Champ de bataille/);
 });
+
+test('échange du Garde du corps : refusé contre une carte déjà activée', () => {
+  const p = piocher(partieNeuve(), 4, creerRng(3)).partie;
+  const visee = p.champDeBataille[0];
+  assert.ok(visee);
+  const active = { ...p, cartesActivees: [visee.instanceId] };
+  assert.throws(() => echangerGardeDuCorps(active, visee.instanceId), /déjà activée/);
+});
