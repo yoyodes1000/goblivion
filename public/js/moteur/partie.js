@@ -1,16 +1,14 @@
-// Moteur — l'état complet d'une partie solo et sa progression.
-// Couche PURE : les fonctions renvoient un NOUVEL état gelé plutôt que de muter
-// l'existant. Testable sous Node, réutilisable telle quelle par le navigateur.
+// Moteur — l'état complet d'une partie solo, ses transitions de phase et de
+// petits helpers d'état. Couche PURE : les fonctions renvoient un NOUVEL état
+// gelé plutôt que de muter l'existant.
 
 import { phaseSuivante } from './phases.js';
 
-/** @typedef {import('./cartes/paysans-base.js').CartePaysanBase} CartePaysanBase */
 /** @typedef {import('./cartes/ennemis.js').CarteEnnemi} CarteEnnemi */
 /** @typedef {import('./cartes/bosses.js').CarteBoss} CarteBoss */
 /** @typedef {import('./cartes/rois-reines.js').CarteRoiReine} CarteRoiReine */
 /** @typedef {import('./cartes/types.js').CarteAlliee} CarteAlliee */
 
-/** @typedef {{ instanceId: string, type: CartePaysanBase }} InstancePaysan */
 /** @typedef {{ instanceId: string, type: CarteAlliee }} InstanceAlliee */
 /** @typedef {{ instanceId: string, type: CarteEnnemi }} InstanceEnnemi */
 /** @typedef {{ instanceId: string, type: CarteBoss }} InstanceBoss */
@@ -40,7 +38,7 @@ import { phaseSuivante } from './phases.js';
  * @property {boolean} pouvoirUtilise                Pouvoir Roi/Reine déjà joué ?
  * @property {boolean} premierCombatGagne            Débloque l'entraînement 2 épées.
  * @property {number} jetonsBonusDepart              Jetons +2 en main (mode Facile).
- * @property {InstancePaysan[]} chateau              Pioche, faces cachées (index 0 = dessus).
+ * @property {InstanceAlliee[]} chateau              Pioche, faces cachées (index 0 = dessus).
  * @property {InstanceAlliee[]} hopital              Défausse, faces visibles.
  * @property {InstanceAlliee[]} champDeBataille      Cartes « en jeu ».
  * @property {InstanceAlliee | null} gardeDuCorps
@@ -60,4 +58,38 @@ export function avancerPhase(partie) {
   const phase = phaseSuivante(partie.phase);
   const tour = phase === 'ENTRAINEMENT' ? partie.tour + 1 : partie.tour;
   return Object.freeze({ ...partie, phase, tour });
+}
+
+/**
+ * Ajuste les ressources d'un delta (signé), bornées à ≥ 0.
+ * Un total nul signifie la défaite (voir `estPerdue`).
+ * @param {Partie} partie
+ * @param {number} delta
+ * @returns {Partie}
+ */
+export function ajusterRessources(partie, delta) {
+  return Object.freeze({ ...partie, ressources: Math.max(0, partie.ressources + delta) });
+}
+
+/**
+ * Fin de phase : les cartes en jeu rejoignent l'Hôpital et le Champ de bataille
+ * est vidé. Le Garde du corps, lui, ne quitte pas son emplacement.
+ * @param {Partie} partie
+ * @returns {Partie}
+ */
+export function viderChampDeBataille(partie) {
+  return Object.freeze({
+    ...partie,
+    hopital: [...partie.hopital, ...partie.champDeBataille],
+    champDeBataille: [],
+  });
+}
+
+/**
+ * La partie est perdue quand les ressources sont épuisées.
+ * @param {Partie} partie
+ * @returns {boolean}
+ */
+export function estPerdue(partie) {
+  return partie.ressources <= 0;
 }
