@@ -77,3 +77,8 @@ test('avancerPhase enchaîne les phases et incrémente le tour', () => {
   assert.equal(p.phase, 'ENTRAINEMENT');
   assert.equal(p.tour, 2);
 });
+
+test('avancerPhase réinitialise l’échange du Garde du corps', () => {
+  const p = { ...partieTest('NORMAL'), gardeDuCorpsEchange: true };
+  assert.equal(avancerPhase(p).gardeDuCorpsEchange, false);
+});

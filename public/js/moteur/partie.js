@@ -39,6 +39,7 @@ import { phaseSuivante } from './phases.js';
  * @property {CarteRoiReine} roiReine
  * @property {boolean} pouvoirUtilise                Pouvoir Roi/Reine déjà joué ?
  * @property {boolean} premierCombatGagne            Débloque l'entraînement 2 épées.
+ * @property {boolean} gardeDuCorpsEchange           Garde du corps déjà échangé cette phase ?
  * @property {number} jetonsBonusDepart              Jetons +2 en main (mode Facile).
  * @property {InstanceAlliee[]} chateau              Pioche, faces cachées (index 0 = dessus).
  * @property {InstanceAlliee[]} hopital              Défausse, faces visibles.
@@ -60,7 +61,7 @@ import { phaseSuivante } from './phases.js';
 export function avancerPhase(partie) {
   const phase = phaseSuivante(partie.phase);
   const tour = phase === 'ENTRAINEMENT' ? partie.tour + 1 : partie.tour;
-  return Object.freeze({ ...partie, phase, tour });
+  return Object.freeze({ ...partie, phase, tour, gardeDuCorpsEchange: false });
 }
 
 /**
@@ -95,4 +96,39 @@ export function viderChampDeBataille(partie) {
  */
 export function estPerdue(partie) {
   return partie.ressources <= 0;
+}
+
+/**
+ * Échange le Garde du corps contre une carte du Champ de bataille (règles
+ * p.16) : la carte visée prend sa place, l'ancien Garde du corps rejoint le
+ * Champ de bataille (il compte désormais pour la Force). Limité à une fois
+ * par phase — remis à zéro par `avancerPhase`.
+ *
+ * Ne déclenche PAS l'effet `GARDE_DU_CORPS` de la carte, et ne vérifie pas
+ * qu'elle n'est pas « activée » : rien dans le moteur ne suit encore l'état
+ * pivoté d'une carte ni n'exécute d'effet (à faire avec le reste de
+ * l'exécution des effets).
+ * @param {Partie} partie
+ * @param {string} instanceId   Carte du Champ de bataille à faire passer Garde du corps.
+ * @returns {Partie}
+ */
+export function echangerGardeDuCorps(partie, instanceId) {
+  if (partie.gardeDuCorpsEchange) {
+    throw new Error('Le Garde du corps a déjà été échangé cette phase');
+  }
+
+  const nouvelleGarde = partie.champDeBataille.find((c) => c.instanceId === instanceId);
+  if (!nouvelleGarde) {
+    throw new Error('Carte absente du Champ de bataille');
+  }
+
+  const champDeBataille = partie.champDeBataille.filter((c) => c.instanceId !== instanceId);
+  if (partie.gardeDuCorps) champDeBataille.push(partie.gardeDuCorps);
+
+  return Object.freeze({
+    ...partie,
+    gardeDuCorps: nouvelleGarde,
+    champDeBataille,
+    gardeDuCorpsEchange: true,
+  });
 }

@@ -90,6 +90,7 @@ export function miseEnPlace(options, rng) {
     roiReine,
     pouvoirUtilise: false,
     premierCombatGagne: false,
+    gardeDuCorpsEchange: false,
     jetonsBonusDepart: JETONS_DEPART[options.difficulte],
     chateau,
     hopital: [],
