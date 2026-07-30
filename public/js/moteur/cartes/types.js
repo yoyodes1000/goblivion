@@ -21,22 +21,24 @@
  * - GARDE_DU_CORPS : quand la carte devient Garde du corps.
  * - PASSIF : effet permanent, sans activation (ex. force variable du Soldat).
  * - ENTRAINEMENT : au moment où l'on entraîne (acquiert) la carte.
- * @typedef {"PIVOTER" | "TESTAMENT" | "GARDE_DU_CORPS" | "PASSIF" | "ENTRAINEMENT"} Declencheur
+ * - REVELATION : effet d'une carte Ennemi au moment où elle est révélée en combat.
+ * @typedef {"PIVOTER" | "TESTAMENT" | "GARDE_DU_CORPS" | "PASSIF" | "ENTRAINEMENT" | "REVELATION"} Declencheur
  */
 
 /**
  * Vocabulaire des effets élémentaires (une icône = un type).
  * - PIOCHER : piocher `valeur` cartes (flèche verte).
- * - DEFAUSSER : défausser UNE AUTRE carte en jeu vers l'Hôpital (récupérable).
+ * - DEFAUSSER : défausser `valeur` autre(s) carte(s) en jeu vers l'Hôpital (défaut 1).
  * - DETRUIRE_JEU : détruire une carte en jeu (retirée du jeu, définitif).
  * - DETRUIRE_HOPITAL : détruire une carte de l'Hôpital (retirée du jeu).
  * - OR : gagner/perdre `valeur` ressources (jeton pièce ; valeur signée).
  * - FORCE : poser un jeton bonus de `valeur` force sur la carte activée.
+ * - JETON_ENNEMI : l'ennemi se pose un jeton bonus de `valeur` force sur lui-même.
  * - VISION : générer `valeur` vision (œil).
  * - ENNEMI_AVANCE : l'ennemi avance (flèche gobelin).
  * - CHOIX : jouer UNE seule des branches de `options`.
  * - SPECIAL : effet propre à la carte, sans icône standard (voir `texte`).
- * @typedef {"PIOCHER" | "DEFAUSSER" | "DETRUIRE_JEU" | "DETRUIRE_HOPITAL" | "OR" | "FORCE" | "VISION" | "ENNEMI_AVANCE" | "CHOIX" | "SPECIAL"} TypeEffet
+ * @typedef {"PIOCHER" | "DEFAUSSER" | "DETRUIRE_JEU" | "DETRUIRE_HOPITAL" | "OR" | "FORCE" | "JETON_ENNEMI" | "VISION" | "ENNEMI_AVANCE" | "CHOIX" | "SPECIAL"} TypeEffet
  */
 
 /**
