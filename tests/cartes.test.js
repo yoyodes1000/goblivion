@@ -8,6 +8,8 @@ import assert from 'node:assert/strict';
 import { paysansBase } from '../public/js/moteur/cartes/paysans-base.js';
 import { dores } from '../public/js/moteur/cartes/dores.js';
 import { ennemis } from '../public/js/moteur/cartes/ennemis.js';
+import { bosses } from '../public/js/moteur/cartes/bosses.js';
+import { roisReines } from '../public/js/moteur/cartes/rois-reines.js';
 
 test('la famille Bleu compte exactement 40 exemplaires', () => {
   assert.equal(paysansBase.reduce((s, c) => s + c.exemplaires, 0), 40);
@@ -21,8 +23,29 @@ test('la famille Ennemi/Objet compte exactement 23 exemplaires', () => {
   assert.equal(ennemis.reduce((s, c) => s + c.exemplaires, 0), 23);
 });
 
+test('la famille Boss compte exactement 11 exemplaires', () => {
+  assert.equal(bosses.reduce((s, c) => s + c.exemplaires, 0), 11);
+});
+
+test('il y a 7 rôles Roi/Reine avec un or de départ valide', () => {
+  assert.equal(roisReines.length, 7);
+  for (const rr of roisReines) {
+    assert.ok(
+      Number.isInteger(rr.ressourcesDepart) && rr.ressourcesDepart > 0,
+      `${rr.nom} : or de départ invalide`,
+    );
+  }
+});
+
+test('le Garde du corps de chaque Roi/Reine référence une carte Doré existante', () => {
+  const idsDore = new Set(dores.map((c) => c.id));
+  for (const rr of roisReines) {
+    assert.ok(idsDore.has(rr.gardeDuCorps), `${rr.nom} : Garde du corps inconnu (${rr.gardeDuCorps})`);
+  }
+});
+
 test('les id sont uniques dans chaque famille', () => {
-  for (const famille of [paysansBase, dores, ennemis]) {
+  for (const famille of [paysansBase, dores, ennemis, bosses, roisReines]) {
     const ids = famille.map((c) => c.id);
     assert.equal(new Set(ids).size, ids.length);
   }
@@ -52,8 +75,8 @@ test('chaque Doré a un coût d’entraînement valide', () => {
   }
 });
 
-test('chaque ennemi a une force et un nombre de cartes entiers positifs', () => {
-  for (const c of ennemis) {
+test('chaque ennemi et chaque Boss ont une force et un nombre de cartes entiers positifs', () => {
+  for (const c of [...ennemis, ...bosses]) {
     assert.ok(Number.isInteger(c.force), `${c.nom} : force invalide`);
     assert.ok(Number.isInteger(c.cartes) && c.cartes > 0, `${c.nom} : cartes invalide`);
   }
@@ -70,6 +93,8 @@ test('les effets de toutes les actions sont bien formés', () => {
     groupes.push([`${c.nom} (ennemi)`, c.actionsEnnemi]);
     groupes.push([`${c.recompense.nom} (récompense)`, c.recompense.actions]);
   }
+  for (const c of bosses) groupes.push([`${c.nom} (Boss)`, c.actions]);
+  for (const c of roisReines) groupes.push([`${c.nom} (pouvoir)`, [c.pouvoir]]);
 
   for (const [nom, actions] of groupes) {
     for (const action of actions) {

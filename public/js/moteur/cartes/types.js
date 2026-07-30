@@ -22,7 +22,8 @@
  * - PASSIF : effet permanent, sans activation (ex. force variable du Soldat).
  * - ENTRAINEMENT : au moment où l'on entraîne (acquiert) la carte.
  * - REVELATION : effet d'une carte Ennemi au moment où elle est révélée en combat.
- * @typedef {"PIVOTER" | "TESTAMENT" | "GARDE_DU_CORPS" | "PASSIF" | "ENTRAINEMENT" | "REVELATION"} Declencheur
+ * - POUVOIR : pouvoir unique d'un Roi/Reine (une seule fois par partie).
+ * @typedef {"PIVOTER" | "TESTAMENT" | "GARDE_DU_CORPS" | "PASSIF" | "ENTRAINEMENT" | "REVELATION" | "POUVOIR"} Declencheur
  */
 
 /**
