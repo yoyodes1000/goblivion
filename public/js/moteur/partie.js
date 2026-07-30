@@ -44,7 +44,8 @@ import { phaseSuivante } from './phases.js';
  * @property {InstanceAlliee | null} gardeDuCorps
  * @property {PileDore[]} marcheDore
  * @property {InstanceEnnemi[]} pileEnnemi           Pioche ennemie (index 0 = dessus).
- * @property {EnnemiSurPiste[]} pisteEnnemi          Ennemis en approche (vide au départ).
+ * @property {(EnnemiSurPiste | null)[]} pisteEnnemi Les 4 cases : index 0 = case 1 (pioche) → index 3 = case 4 (Portes).
+ * @property {EnnemiSurPiste[]} portes               Ennemis aux Portes du château (max 3, en combat).
  * @property {InstanceBoss[]} boss                   Boss à affronter, faces cachées.
  */
 
