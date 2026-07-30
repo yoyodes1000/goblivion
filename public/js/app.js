@@ -1,8 +1,9 @@
-// Point d'entrée navigateur. Pour l'instant, il câble le moteur à l'écran juste
-// assez pour prouver la chaîne : module ES chargé sans build → moteur pur →
-// affichage. La vraie interface (plateau SVG) remplacera cette démo.
+// Point d'entrée navigateur — démo : met en place une partie et laisse avancer
+// les phases au clic. La vraie interface (plateau SVG) remplacera cette démo.
 
-import { nouvellePartie, avancerPhase } from './moteur/partie.js';
+import { creerRng } from './moteur/aleatoire.js';
+import { miseEnPlace } from './moteur/mise-en-place.js';
+import { avancerPhase } from './moteur/partie.js';
 
 /** Libellés lisibles des phases pour l'affichage. */
 const LIBELLE_PHASE = {
@@ -12,12 +13,14 @@ const LIBELLE_PHASE = {
 };
 
 const affichage = document.querySelector('#etat-partie');
-let partie = nouvellePartie();
+let partie = miseEnPlace({ roiReineId: 'margot', difficulte: 'NORMAL' }, creerRng(1));
 
-/** Met à jour l'écran avec le tour et la phase courants. */
+/** Met à jour l'écran avec un résumé de l'état courant. */
 function afficher() {
   if (affichage) {
-    affichage.textContent = `Tour ${partie.tour} — ${LIBELLE_PHASE[partie.phase]}`;
+    affichage.textContent =
+      `${partie.roiReine.nom} — Tour ${partie.tour} · ${LIBELLE_PHASE[partie.phase]} · ` +
+      `${partie.ressources} or · Château ${partie.chateau.length} · Boss ${partie.boss.length}`;
   }
 }
 

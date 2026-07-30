@@ -59,4 +59,10 @@
  * @property {string} [texte]       Libellé lisible d'origine.
  */
 
+/**
+ * Réunion des cartes alliées « jouables » (Paysan de base + Doré) : ce qui peut
+ * se retrouver en jeu, à l'Hôpital ou comme Garde du corps.
+ * @typedef {import('./paysans-base.js').CartePaysanBase | import('./dores.js').CarteDore} CarteAlliee
+ */
+
 export {};
