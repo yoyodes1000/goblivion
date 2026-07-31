@@ -2,9 +2,13 @@
 // Couche PURE : aucune dépendance au DOM ni à l'extérieur. Testable sous Node.
 
 /**
- * Les trois phases d'un tour, dans l'ordre où elles s'enchaînent (voir règles :
- * Entraînement → L'Ennemi Avance → Combat).
- * @typedef {'ENTRAINEMENT' | 'ENNEMI_AVANCE' | 'COMBAT'} Phase
+ * Les phases d'une partie. Les trois premières s'enchaînent en cycle (voir
+ * règles : Entraînement → L'Ennemi Avance → Combat, cf. `phaseSuivante`).
+ * `COMBAT_BOSS` n'en fait pas partie : on n'y entre qu'une fois, depuis
+ * L'Ennemi Avance (voir `orchestration.js`), et on n'en ressort jamais vers
+ * Entraînement — plus d'Entraînement une fois les Boss engagés, on les
+ * retente jusqu'à victoire ou défaite.
+ * @typedef {'ENTRAINEMENT' | 'ENNEMI_AVANCE' | 'COMBAT' | 'COMBAT_BOSS'} Phase
  */
 
 /** @type {readonly Phase[]} */

@@ -10,6 +10,7 @@ const LIBELLE_PHASE = {
   ENTRAINEMENT: 'Entraînement',
   ENNEMI_AVANCE: "L'Ennemi Avance",
   COMBAT: 'Combat',
+  COMBAT_BOSS: 'Combat des Boss',
 };
 
 const affichage = document.querySelector('#etat-partie');
