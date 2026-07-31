@@ -152,6 +152,76 @@ test('Gobelin vachelier (SPECIAL) : le jeton bonus compte dans la comparaison de
   );
 });
 
+test('Sorcière troll (SPECIAL) : détruit le Paysan désigné, sans passer par l’Hôpital', () => {
+  const paysan = { instanceId: 'paysan#x', type: /** @type {any} */ ({ id: 'paysan', force: 1, symbole: 'HUMAIN', actions: [] }) };
+  const p = scenario(
+    [ennemi('sorciere-troll', [{ type: 'SPECIAL', texte: 'détruire 1 Paysan (HUMAIN) en jeu' }])],
+    { champDeBataille: [paysan] },
+  );
+
+  const { partie } = revelerAuxPortes(p, 0, [{ cibles: ['paysan#x'] }], creerRng(1));
+
+  assert.ok(!partie.champDeBataille.some((c) => c.instanceId === 'paysan#x'));
+  assert.ok(!partie.hopital.some((c) => c.instanceId === 'paysan#x'));
+});
+
+test('Sorcière troll (SPECIAL) : refuse une cible qui n’est pas un Paysan (symbole HUMAIN)', () => {
+  const objet = { instanceId: 'objet#x', type: /** @type {any} */ ({ id: 'objet', force: 1, symbole: 'OBJET', actions: [] }) };
+  const p = scenario(
+    [ennemi('sorciere-troll', [{ type: 'SPECIAL', texte: 'détruire 1 Paysan (HUMAIN) en jeu' }])],
+    { champDeBataille: [objet] },
+  );
+
+  assert.throws(
+    () => revelerAuxPortes(p, 0, [{ cibles: ['objet#x'] }], creerRng(1)),
+    /doit être un Paysan/,
+  );
+});
+
+test('Sorcière troll (SPECIAL) : déclenche le TESTAMENT du Paysan détruit', () => {
+  const paysan = {
+    instanceId: 'paysan#x',
+    type: /** @type {any} */ ({
+      id: 'paysan', force: 1, symbole: 'HUMAIN',
+      actions: [{ declencheur: 'TESTAMENT', effets: [{ type: 'OR', valeur: 3 }] }],
+    }),
+  };
+  const p = scenario(
+    [ennemi('sorciere-troll', [{ type: 'SPECIAL', texte: 'détruire 1 Paysan (HUMAIN) en jeu' }])],
+    { champDeBataille: [paysan] },
+  );
+
+  const { partie } = revelerAuxPortes(p, 0, [{ cibles: ['paysan#x'] }], creerRng(1));
+
+  assert.equal(partie.ressources, p.ressources + 3);
+});
+
+test('Booba Brise-Fer (SPECIAL) : détruit l’Objet désigné, sans passer par l’Hôpital', () => {
+  const objet = { instanceId: 'objet#x', type: /** @type {any} */ ({ id: 'objet', force: 1, symbole: 'OBJET', actions: [] }) };
+  const p = scenario(
+    [ennemi('booba-brise-fer', [{ type: 'SPECIAL', texte: 'détruire 1 Objet (OBJET) en jeu' }])],
+    { champDeBataille: [objet] },
+  );
+
+  const { partie } = revelerAuxPortes(p, 0, [{ cibles: ['objet#x'] }], creerRng(1));
+
+  assert.ok(!partie.champDeBataille.some((c) => c.instanceId === 'objet#x'));
+  assert.ok(!partie.hopital.some((c) => c.instanceId === 'objet#x'));
+});
+
+test('Booba Brise-Fer (SPECIAL) : refuse une cible qui n’est pas un Objet (symbole OBJET)', () => {
+  const paysan = { instanceId: 'paysan#x', type: /** @type {any} */ ({ id: 'paysan', force: 1, symbole: 'HUMAIN', actions: [] }) };
+  const p = scenario(
+    [ennemi('booba-brise-fer', [{ type: 'SPECIAL', texte: 'détruire 1 Objet (OBJET) en jeu' }])],
+    { champDeBataille: [paysan] },
+  );
+
+  assert.throws(
+    () => revelerAuxPortes(p, 0, [{ cibles: ['paysan#x'] }], creerRng(1)),
+    /doit être un Objet/,
+  );
+});
+
 test('index hors bornes lève une erreur', () => {
   const p = scenario([]);
   assert.throws(() => revelerAuxPortes(p, 0, [], creerRng(1)), /Aucun ennemi/);

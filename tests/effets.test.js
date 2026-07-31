@@ -271,6 +271,30 @@ test('CHOIX : propage les reconstitutions du Château depuis la branche choisie'
   assert.equal(reconstitutions, 1);
 });
 
+test('SPECIAL (Sorcière troll) : propage les reconstitutions du Château depuis le TESTAMENT de la cible détruite', () => {
+  const cibleHumaine = {
+    instanceId: 'paysan#x',
+    type: /** @type {any} */ ({
+      id: 'paysan', force: 0, symbole: 'HUMAIN',
+      actions: [{ declencheur: 'TESTAMENT', effets: [{ type: 'PIOCHER', valeur: 2 }] }],
+    }),
+  };
+  const remplissage = Array.from({ length: 3 }, (_, i) => carte(`c${i}`));
+  const p = { ...scenario([cibleHumaine]), chateau: [], hopital: remplissage };
+
+  const { partie, reconstitutions } = executerEffets(
+    p,
+    [{ type: 'SPECIAL', texte: 'détruire 1 Paysan (HUMAIN) en jeu' }],
+    [{ cibles: ['paysan#x'] }],
+    creerRng(1),
+    undefined,
+    'sorciere-troll',
+  );
+
+  assert.equal(partie.champDeBataille.some((c) => c.instanceId === 'paysan#x'), false);
+  assert.equal(reconstitutions, 1);
+});
+
 test('les reconstitutions du Château se propagent depuis PIOCHER', () => {
   const remplissage = Array.from({ length: 3 }, (_, i) => carte(`c${i}`));
   const p = { ...scenario([]), chateau: [], hopital: remplissage };

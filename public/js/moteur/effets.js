@@ -18,6 +18,15 @@
 // recherche dans une zone). Sans gestionnaire trouvé, lève une erreur
 // explicite plutôt que de ne rien faire.
 //
+// Certains gestionnaires SPECIAL ont besoin de détruire une carte (avec son
+// éventuel TESTAMENT) — ex. Sorcière troll, Booba Brise-Fer. Cette machinerie
+// vit ici (`detruireEnJeu`), pas dans `special.js`, qui ne peut pas l'importer
+// sans créer un cycle (ce fichier importe déjà `special.js`). Elle lui est
+// donc *injectée* en paramètre, sur le même principe que `rng` et
+// `carteActiveeId` : le gestionnaire peut alors renvoyer soit un `Partie`
+// (cas courant), soit `{ partie, reconstitutions }` s'il a détruit une carte
+// dont le TESTAMENT a pioché (voir le cas 'SPECIAL' ci-dessous).
+//
 // Détruire une carte (DETRUIRE_JEU/DETRUIRE_HOPITAL) déclenche son éventuelle
 // action TESTAMENT, exécutée récursivement via executerEffets.
 //
@@ -101,7 +110,7 @@ function executerTestament(partie, carte, choix, rng) {
  * @param {() => number} rng
  * @returns {{ partie: Partie, reconstitutions: number }}
  */
-function detruireEnJeu(partie, instanceId, choixTestament, rng) {
+export function detruireEnJeu(partie, instanceId, choixTestament, rng) {
   const carte = partie.champDeBataille.find((c) => c.instanceId === instanceId);
   if (!carte) throw new Error(`DETRUIRE_JEU : carte absente du Champ de bataille (${instanceId})`);
 
@@ -225,7 +234,13 @@ export function executerEffets(partie, effets, choix, rng, carteActiveeId, carte
       case 'SPECIAL': {
         const gestionnaire = carteActiveeTypeId ? gestionnairesSpecial[carteActiveeTypeId] : undefined;
         if (!gestionnaire) throw new Error(`SPECIAL non encore exécutable : ${effet.texte}`);
-        etat = gestionnaire(etat, c, rng, carteActiveeId);
+        const resultat = gestionnaire(etat, c, rng, carteActiveeId, detruireEnJeu);
+        if ('reconstitutions' in resultat) {
+          etat = resultat.partie;
+          reconstitutions += resultat.reconstitutions;
+        } else {
+          etat = resultat;
+        }
         break;
       }
 

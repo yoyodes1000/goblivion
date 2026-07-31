@@ -18,9 +18,16 @@ import { melanger } from './aleatoire.js';
 /** @typedef {import('./partie.js').Partie} Partie */
 /** @typedef {import('./partie.js').InstanceAlliee} InstanceAlliee */
 /** @typedef {import('./effets.js').Choix} Choix */
+/** @typedef {typeof import('./effets.js').detruireEnJeu} DetruireEnJeu */
 
 /**
- * @typedef {(partie: Partie, choix: Choix | undefined, rng: () => number, carteActiveeId: string | undefined) => Partie} GestionnaireSpecial
+ * `detruireEnJeu` est injecté par `effets.js` (voir son en-tête) pour les
+ * gestionnaires qui doivent détruire une carte avec son éventuel TESTAMENT —
+ * ex. Sorcière troll. Un gestionnaire qui l'utilise renvoie alors son
+ * résultat tel quel (`{ partie, reconstitutions }`) plutôt qu'un `Partie` nu,
+ * pour que les reconstitutions du Château provoquées par le TESTAMENT
+ * remontent jusqu'à l'appelant.
+ * @typedef {(partie: Partie, choix: Choix | undefined, rng: () => number, carteActiveeId: string | undefined, detruireEnJeu: DetruireEnJeu) => Partie | { partie: Partie, reconstitutions: number }} GestionnaireSpecial
  */
 
 /**
@@ -61,6 +68,21 @@ function trouverPaysanCible(partie, cible, nomCarte) {
   const carte = partie.champDeBataille.find((c) => c.instanceId === cible);
   if (!carte) throw new Error(`${nomCarte} : carte absente du Champ de bataille (${cible})`);
   if (carte.type.symbole !== 'HUMAIN') throw new Error(`${nomCarte} : la cible doit être un Paysan (symbole HUMAIN)`);
+  return carte;
+}
+
+/**
+ * Trouve la cible d'un effet visant un Objet (symbole OBJET) du Champ de
+ * bataille, en validant son symbole. Pendant de `trouverPaysanCible`.
+ * @param {Partie} partie
+ * @param {string} cible
+ * @param {string} nomCarte   Pour le message d'erreur.
+ * @returns {InstanceAlliee}
+ */
+function trouverObjetCible(partie, cible, nomCarte) {
+  const carte = partie.champDeBataille.find((c) => c.instanceId === cible);
+  if (!carte) throw new Error(`${nomCarte} : carte absente du Champ de bataille (${cible})`);
+  if (carte.type.symbole !== 'OBJET') throw new Error(`${nomCarte} : la cible doit être un Objet (symbole OBJET)`);
   return carte;
 }
 
@@ -215,6 +237,29 @@ export const gestionnairesSpecial = {
     }
 
     return envoyerHopital(partie, carte);
+  },
+
+  /**
+   * Sorcière troll (REVELATION) : détruit le Paysan (HUMAIN) désigné du Champ
+   * de bataille — comme DETRUIRE_JEU, TESTAMENT éventuel compris, via la
+   * fonction injectée `detruireEnJeu` (voir le typedef `GestionnaireSpecial`).
+   */
+  'sorciere-troll'(partie, choix, rng, carteActiveeId, detruireEnJeu) {
+    const [cible, ...reste] = choix?.cibles ?? [];
+    if (!cible || reste.length > 0) throw new Error('Sorcière troll : une seule cible attendue');
+    trouverPaysanCible(partie, cible, 'Sorcière troll');
+    return detruireEnJeu(partie, cible, choix?.choixTestament ?? [], rng);
+  },
+
+  /**
+   * Booba Brise-Fer (REVELATION) : détruit l'Objet (OBJET) désigné du Champ
+   * de bataille — même mécanisme que Sorcière troll, sur l'autre symbole.
+   */
+  'booba-brise-fer'(partie, choix, rng, carteActiveeId, detruireEnJeu) {
+    const [cible, ...reste] = choix?.cibles ?? [];
+    if (!cible || reste.length > 0) throw new Error('Booba Brise-Fer : une seule cible attendue');
+    trouverObjetCible(partie, cible, 'Booba Brise-Fer');
+    return detruireEnJeu(partie, cible, choix?.choixTestament ?? [], rng);
   },
 };
 
