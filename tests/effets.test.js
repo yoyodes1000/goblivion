@@ -17,6 +17,19 @@ function carte(id) {
 }
 
 /**
+ * Une carte de test avec une action TESTAMENT donnée.
+ * @param {string} id
+ * @param {import('../public/js/moteur/cartes/types.js').Effet[]} effets
+ * @returns {import('../public/js/moteur/partie.js').InstanceAlliee}
+ */
+function carteAvecTestament(id, effets) {
+  return {
+    instanceId: `${id}#x`,
+    type: /** @type {any} */ ({ id, force: 0, actions: [{ declencheur: 'TESTAMENT', effets }] }),
+  };
+}
+
+/**
  * @param {import('../public/js/moteur/partie.js').InstanceAlliee[]} champ
  * @param {import('../public/js/moteur/partie.js').InstanceAlliee[]} [hopital]
  */
@@ -75,6 +88,44 @@ test('DETRUIRE_HOPITAL : retire la carte de l’Hôpital', () => {
   const p = scenario([], [carte('a')]);
   const { partie } = executerEffets(p, [{ type: 'DETRUIRE_HOPITAL' }], [{ cibles: ['a#x'] }], creerRng(1));
   assert.equal(partie.hopital.length, 0);
+});
+
+test('DETRUIRE_JEU : déclenche le TESTAMENT de la carte détruite', () => {
+  const p = scenario([carteAvecTestament('paysan', [{ type: 'OR', valeur: 3 }])]);
+  const { partie } = executerEffets(p, [{ type: 'DETRUIRE_JEU' }], [{ cibles: ['paysan#x'] }], creerRng(1));
+  assert.equal(partie.ressources, p.ressources + 3);
+  assert.equal(partie.champDeBataille.length, 0);
+});
+
+test('DETRUIRE_HOPITAL : déclenche aussi le TESTAMENT de la carte détruite', () => {
+  const p = scenario([], [carteAvecTestament('paysan', [{ type: 'OR', valeur: 3 }])]);
+  const { partie } = executerEffets(p, [{ type: 'DETRUIRE_HOPITAL' }], [{ cibles: ['paysan#x'] }], creerRng(1));
+  assert.equal(partie.ressources, p.ressources + 3);
+});
+
+test('DETRUIRE_JEU : le choix du TESTAMENT vient de `choixTestament`', () => {
+  const p = avancerEnnemis(scenario([carteAvecTestament('paysan', [{ type: 'VISION', valeur: 1 }])]));
+  const { partie } = executerEffets(
+    p,
+    [{ type: 'DETRUIRE_JEU' }],
+    [{ cibles: ['paysan#x'], choixTestament: [{ indexPiste: [0] }] }],
+    creerRng(1),
+  );
+  assert.equal(partie.pisteEnnemi[0]?.revele, true);
+});
+
+test('détruire une carte sans TESTAMENT n’a aucun effet de bord', () => {
+  const p = scenario([carte('sans-testament')]);
+  const { partie } = executerEffets(p, [{ type: 'DETRUIRE_JEU' }], [{ cibles: ['sans-testament#x'] }], creerRng(1));
+  assert.equal(partie.ressources, p.ressources);
+});
+
+test('un TESTAMENT pas encore géré (ex. SPECIAL) propage l’erreur explicite', () => {
+  const p = scenario([carteAvecTestament('paysan', [{ type: 'SPECIAL', texte: 'quelque chose' }])]);
+  assert.throws(
+    () => executerEffets(p, [{ type: 'DETRUIRE_JEU' }], [{ cibles: ['paysan#x'] }], creerRng(1)),
+    /non encore exécutable/,
+  );
 });
 
 test('VISION : révèle les cases de piste visées', () => {
