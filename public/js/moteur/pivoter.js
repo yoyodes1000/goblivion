@@ -32,7 +32,14 @@ export function activerPivoter(partie, instanceId, choix, rng) {
   const action = carte.type.actions.find((a) => a.declencheur === 'PIVOTER');
   if (!action) throw new Error('Cette carte n’a pas d’action Pivoter');
 
-  const { partie: etat, reconstitutions } = executerEffets(partie, action.effets, choix, rng, instanceId);
+  const { partie: etat, reconstitutions } = executerEffets(
+    partie,
+    action.effets,
+    choix,
+    rng,
+    instanceId,
+    carte.type.id,
+  );
 
   return {
     partie: Object.freeze({ ...etat, cartesActivees: [...etat.cartesActivees, instanceId] }),

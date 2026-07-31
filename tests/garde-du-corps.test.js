@@ -76,3 +76,46 @@ test('FORCE dans une action GARDE_DU_CORPS cible la carte qui prend la place (au
   const r = echangerGardeDuCorps(p, 'espion#x', [], creerRng(1));
   assert.equal(r.gardeDuCorps?.jetonBonus, 2);
 });
+
+test('Prêtre (SPECIAL) : ramène un Paysan de l’Hôpital en jeu avec +1 force', () => {
+  const pretre = {
+    instanceId: 'pretre#x',
+    type: /** @type {any} */ ({
+      id: 'pretre',
+      force: 0,
+      actions: [{
+        declencheur: 'GARDE_DU_CORPS',
+        effets: [{ type: 'SPECIAL', texte: 'ramener un Paysan (HUMAIN) de l’Hôpital en jeu avec +1 force' }],
+      }],
+    }),
+  };
+  const paysan = { instanceId: 'paysan#x', type: /** @type {any} */ ({ id: 'paysan', force: 1, symbole: 'HUMAIN' }) };
+
+  const p = { ...scenario([pretre]), hopital: [paysan] };
+  const r = echangerGardeDuCorps(p, 'pretre#x', [{ cibles: ['paysan#x'] }], creerRng(1));
+
+  const ramene = r.champDeBataille.find((c) => c.instanceId === 'paysan#x');
+  assert.equal(ramene?.jetonBonus, 1);
+  assert.ok(!r.hopital.some((c) => c.instanceId === 'paysan#x'));
+});
+
+test('Prêtre (SPECIAL) : refuse une cible qui n’est pas un Paysan (symbole HUMAIN)', () => {
+  const pretre = {
+    instanceId: 'pretre#x',
+    type: /** @type {any} */ ({
+      id: 'pretre',
+      force: 0,
+      actions: [{
+        declencheur: 'GARDE_DU_CORPS',
+        effets: [{ type: 'SPECIAL', texte: 'ramener un Paysan (HUMAIN) de l’Hôpital en jeu avec +1 force' }],
+      }],
+    }),
+  };
+  const objet = { instanceId: 'objet#x', type: /** @type {any} */ ({ id: 'objet', force: 1, symbole: 'OBJET' }) };
+
+  const p = { ...scenario([pretre]), hopital: [objet] };
+  assert.throws(
+    () => echangerGardeDuCorps(p, 'pretre#x', [{ cibles: ['objet#x'] }], creerRng(1)),
+    /doit être un Paysan/,
+  );
+});

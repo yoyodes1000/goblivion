@@ -12,6 +12,12 @@
 // une action contenant FORCE lève une erreur explicite plutôt que de deviner
 // une cible.
 //
+// SPECIAL délègue au gestionnaire de `special.js` correspondant au `type.id`
+// de la carte activée, fourni par l'appelant via `carteActiveeTypeId` (un
+// id de carte, pas un instanceId : c'est une clé de registre, pas une
+// recherche dans une zone). Sans gestionnaire trouvé, lève une erreur
+// explicite plutôt que de ne rien faire.
+//
 // Détruire une carte (DETRUIRE_JEU/DETRUIRE_HOPITAL) déclenche son éventuelle
 // action TESTAMENT, exécutée récursivement via executerEffets.
 //
@@ -20,11 +26,11 @@
 //   REVELATION directement (voir revelation.js), pas par cet exécuteur.
 // - CHOIX : la sélection de branche + ses sous-choix demande sa propre
 //   conception (imbrication), pas dans ce lot.
-// - SPECIAL : propre à chaque carte, gestionnaires à écrire au cas par cas.
 
 import { piocher } from './pioche.js';
 import { ajusterRessources } from './partie.js';
 import { revelerSurPiste } from './ennemi-avance.js';
+import { gestionnairesSpecial } from './special.js';
 
 /** @typedef {import('./partie.js').Partie} Partie */
 /** @typedef {import('./partie.js').InstanceAlliee} InstanceAlliee */
@@ -101,7 +107,7 @@ function ajouterJetonBonusAllie(partie, instanceId, valeur) {
 function executerTestament(partie, carte, choix, rng) {
   const action = carte.type.actions.find((a) => a.declencheur === 'TESTAMENT');
   if (!action) return { partie, reconstitutions: 0 };
-  return executerEffets(partie, action.effets, choix, rng);
+  return executerEffets(partie, action.effets, choix, rng, undefined, carte.type.id);
 }
 
 /**
@@ -164,15 +170,17 @@ function genererVision(partie, indexPiste) {
  * une (voir `Choix`) ; absent pour PIOCHER/OR, qui n'en ont pas besoin.
  * `carteActiveeId` est la cible de FORCE (« la carte activée ») — fourni par
  * l'appelant, jamais par `choix` ; absent, une action avec FORCE lève une
- * erreur explicite.
+ * erreur explicite. `carteActiveeTypeId` (le `type.id` de cette même carte)
+ * sert de clé de registre pour SPECIAL — voir `special.js`.
  * @param {Partie} partie
  * @param {readonly Effet[]} effets
  * @param {readonly (Choix | undefined)[]} choix
  * @param {() => number} rng
  * @param {string} [carteActiveeId]
+ * @param {string} [carteActiveeTypeId]
  * @returns {{ partie: Partie, reconstitutions: number }}
  */
-export function executerEffets(partie, effets, choix, rng, carteActiveeId) {
+export function executerEffets(partie, effets, choix, rng, carteActiveeId, carteActiveeTypeId) {
   let etat = partie;
   let reconstitutions = 0;
 
@@ -229,6 +237,13 @@ export function executerEffets(partie, effets, choix, rng, carteActiveeId) {
       case 'FORCE': {
         if (!carteActiveeId) throw new Error('FORCE : aucune carte activée dans ce contexte');
         etat = ajouterJetonBonusAllie(etat, carteActiveeId, effet.valeur ?? 0);
+        break;
+      }
+
+      case 'SPECIAL': {
+        const gestionnaire = carteActiveeTypeId ? gestionnairesSpecial[carteActiveeTypeId] : undefined;
+        if (!gestionnaire) throw new Error(`SPECIAL non encore exécutable : ${effet.texte}`);
+        etat = gestionnaire(etat, c, rng);
         break;
       }
 

@@ -64,6 +64,25 @@ test('FORCE : pose un jeton bonus sur la carte activée elle-même (forme de Lam
   assert.equal(partie.champDeBataille[0]?.jetonBonus, 3);
 });
 
+test('Nain (SPECIAL) : chaque Objet en jeu gagne +1 force, résolu via type.id', () => {
+  const nain = {
+    instanceId: 'nain#x',
+    type: /** @type {any} */ ({
+      id: 'nain',
+      force: 0,
+      actions: [{ declencheur: 'PIVOTER', effets: [{ type: 'SPECIAL', texte: 'chaque Objet en jeu gagne +1 force' }] }],
+    }),
+  };
+  const epee = { instanceId: 'epee#x', type: /** @type {any} */ ({ id: 'epee', force: 1, symbole: 'OBJET' }) };
+  const paysan = { instanceId: 'paysan#x', type: /** @type {any} */ ({ id: 'paysan', force: 0, symbole: 'HUMAIN' }) };
+
+  const p = scenario([nain, epee, paysan]);
+  const { partie } = activerPivoter(p, 'nain#x', [], creerRng(1));
+
+  assert.equal(partie.champDeBataille.find((c) => c.instanceId === 'epee#x')?.jetonBonus, 1);
+  assert.equal(partie.champDeBataille.find((c) => c.instanceId === 'paysan#x')?.jetonBonus, undefined);
+});
+
 test('propage les reconstitutions du Château depuis les effets exécutés', () => {
   const remplissage = Array.from({ length: 2 }, (_, i) => carte(`c${i}`));
   const p = {

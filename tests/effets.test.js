@@ -184,6 +184,42 @@ test('FORCE : lève une erreur si la carte activée est absente du Champ de bata
   );
 });
 
+test('SPECIAL : délègue au gestionnaire de special.js trouvé via carteActiveeTypeId', () => {
+  const p = { ...scenario([]), chateau: [carte('a'), carte('b')] };
+  const { partie } = executerEffets(
+    p,
+    [{ type: 'SPECIAL', texte: 'détruire la prochaine carte du Château' }],
+    [],
+    creerRng(1),
+    undefined,
+    'trollolole',
+  );
+  assert.equal(partie.chateau.length, 1);
+  assert.equal(partie.chateau[0]?.instanceId, 'b#x');
+});
+
+test('SPECIAL : sans gestionnaire trouvé, lève une erreur explicite avec le texte de la carte', () => {
+  const p = scenario([]);
+  assert.throws(
+    () => executerEffets(p, [{ type: 'SPECIAL', texte: 'un effet jamais vu' }], [], creerRng(1), undefined, 'inconnu'),
+    /non encore exécutable : un effet jamais vu/,
+  );
+});
+
+test('TESTAMENT du Hochet royal réactive le pouvoir Roi/Reine', () => {
+  const hochetRoyal = {
+    instanceId: 'hochet#x',
+    type: /** @type {any} */ ({
+      id: 'hochet-royal',
+      force: 0,
+      actions: [{ declencheur: 'TESTAMENT', effets: [{ type: 'SPECIAL', texte: 'réactiver une carte Roi/Reine' }] }],
+    }),
+  };
+  const p = { ...scenario([hochetRoyal]), pouvoirUtilise: true };
+  const { partie } = executerEffets(p, [{ type: 'DETRUIRE_JEU' }], [{ cibles: ['hochet#x'] }], creerRng(1));
+  assert.equal(partie.pouvoirUtilise, false);
+});
+
 test('les reconstitutions du Château se propagent depuis PIOCHER', () => {
   const remplissage = Array.from({ length: 3 }, (_, i) => carte(`c${i}`));
   const p = { ...scenario([]), chateau: [], hopital: remplissage };

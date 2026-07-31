@@ -63,7 +63,7 @@ export function revelerAuxPortes(partie, index, choix, rng) {
     } else if (effet.type === 'ENNEMI_AVANCE') {
       ennemiAvance = true;
     } else {
-      const r = executerEffets(etat, [effet], [choix[i]], rng);
+      const r = executerEffets(etat, [effet], [choix[i]], rng, undefined, ennemi.instance.type.id);
       etat = r.partie;
       reconstitutions += r.reconstitutions;
     }

@@ -49,5 +49,5 @@ export function echangerGardeDuCorps(partie, instanceId, choix, rng) {
   const action = nouvelleGarde.type.actions.find((a) => a.declencheur === 'GARDE_DU_CORPS');
   if (!action) return etat;
 
-  return executerEffets(etat, action.effets, choix, rng, instanceId).partie;
+  return executerEffets(etat, action.effets, choix, rng, instanceId, nouvelleGarde.type.id).partie;
 }

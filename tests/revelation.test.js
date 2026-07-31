@@ -72,6 +72,13 @@ test('un effet SPECIAL non géré lève l’erreur explicite d’effets.js', () 
   assert.throws(() => revelerAuxPortes(p, 0, [], creerRng(1)), /non encore exécutable/);
 });
 
+test('Trollolole : détruit la prochaine carte du Château (gestionnaire SPECIAL résolu via type.id)', () => {
+  const p = scenario([ennemi('trollolole', [{ type: 'SPECIAL', texte: 'détruire la prochaine carte du Château' }])]);
+  const chateauAvant = p.chateau.length;
+  const { partie } = revelerAuxPortes(p, 0, [], creerRng(1));
+  assert.equal(partie.chateau.length, chateauAvant - 1);
+});
+
 test('index hors bornes lève une erreur', () => {
   const p = scenario([]);
   assert.throws(() => revelerAuxPortes(p, 0, [], creerRng(1)), /Aucun ennemi/);
