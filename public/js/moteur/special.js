@@ -9,8 +9,10 @@
 
 import { paysansBase } from './cartes/index.js';
 import { ajouterJetonBonusAllie } from './partie.js';
+import { forceCarte } from './force.js';
 
 /** @typedef {import('./partie.js').Partie} Partie */
+/** @typedef {import('./partie.js').InstanceAlliee} InstanceAlliee */
 /** @typedef {import('./effets.js').Choix} Choix */
 
 /**
@@ -35,6 +37,37 @@ function ramenerObjetHopital(partie, choix) {
     ...partie,
     hopital: partie.hopital.filter((c) => c.instanceId !== cible),
     champDeBataille: [...partie.champDeBataille, carte],
+  });
+}
+
+/**
+ * Trouve la cible d'un effet REVELATION ennemi visant un Paysan (symbole
+ * HUMAIN) du Champ de bataille, en validant son symbole. Un filtre
+ * supplémentaire (ex. « le plus fort ») reste à la charge de l'appelant.
+ * @param {Partie} partie
+ * @param {string} cible
+ * @param {string} nomCarte   Pour le message d'erreur.
+ * @returns {InstanceAlliee}
+ */
+function trouverPaysanCible(partie, cible, nomCarte) {
+  const carte = partie.champDeBataille.find((c) => c.instanceId === cible);
+  if (!carte) throw new Error(`${nomCarte} : carte absente du Champ de bataille (${cible})`);
+  if (carte.type.symbole !== 'HUMAIN') throw new Error(`${nomCarte} : la cible doit être un Paysan (symbole HUMAIN)`);
+  return carte;
+}
+
+/**
+ * Envoie une carte du Champ de bataille vers l'Hôpital. Pas de TESTAMENT :
+ * un envoi à l'Hôpital n'en déclenche jamais (comme DEFAUSSER).
+ * @param {Partie} partie
+ * @param {InstanceAlliee} carte
+ * @returns {Partie}
+ */
+function envoyerHopital(partie, carte) {
+  return Object.freeze({
+    ...partie,
+    champDeBataille: partie.champDeBataille.filter((c) => c.instanceId !== carte.instanceId),
+    hopital: [...partie.hopital, carte],
   });
 }
 
@@ -143,5 +176,36 @@ export const gestionnairesSpecial = {
       idsBleu.has(c.type.id) ? { ...c, jetonBonus: (c.jetonBonus ?? 0) + 1 } : c,
     );
     return Object.freeze({ ...partie, champDeBataille });
+  },
+
+  /**
+   * Horde Gobelin (REVELATION) : envoie un Paysan désigné à l'Hôpital.
+   */
+  'horde-gobelin'(partie, choix) {
+    const [cible, ...reste] = choix?.cibles ?? [];
+    if (!cible || reste.length > 0) throw new Error('Horde Gobelin : une seule cible attendue');
+    return envoyerHopital(partie, trouverPaysanCible(partie, cible, 'Horde Gobelin'));
+  },
+
+  /**
+   * Gobelin vachelier (REVELATION) : envoie le Paysan le plus fort du Champ
+   * de bataille à l'Hôpital. Comme toute cible d'effet, désignée par
+   * `choix.cibles` — le moteur ne choisit jamais à la place du joueur, même
+   * quand « le plus fort » a un unique gagnant, l'UI la fournira au clic ;
+   * ici en plus validée contre la force réelle (via `forceCarte`, qui inclut
+   * le jeton bonus).
+   */
+  'gobelin-vachelier'(partie, choix) {
+    const [cible, ...reste] = choix?.cibles ?? [];
+    if (!cible || reste.length > 0) throw new Error('Gobelin vachelier : une seule cible attendue');
+    const carte = trouverPaysanCible(partie, cible, 'Gobelin vachelier');
+
+    const paysans = partie.champDeBataille.filter((c) => c.type.symbole === 'HUMAIN');
+    const forceMax = Math.max(...paysans.map((c) => forceCarte(c, partie.champDeBataille)));
+    if (forceCarte(carte, partie.champDeBataille) !== forceMax) {
+      throw new Error('Gobelin vachelier : la cible doit être le Paysan le plus fort');
+    }
+
+    return envoyerHopital(partie, carte);
   },
 };

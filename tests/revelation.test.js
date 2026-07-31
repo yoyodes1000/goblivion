@@ -79,6 +79,79 @@ test('Trollolole : détruit la prochaine carte du Château (gestionnaire SPECIAL
   assert.equal(partie.chateau.length, chateauAvant - 1);
 });
 
+test('Horde Gobelin (SPECIAL) : envoie le Paysan désigné à l’Hôpital', () => {
+  const paysan = { instanceId: 'paysan#x', type: /** @type {any} */ ({ id: 'paysan', force: 1, symbole: 'HUMAIN' }) };
+  const p = scenario(
+    [ennemi('horde-gobelin', [{ type: 'SPECIAL', texte: 'envoyer un Paysan à l’Hôpital' }])],
+    { champDeBataille: [paysan] },
+  );
+
+  const { partie } = revelerAuxPortes(p, 0, [{ cibles: ['paysan#x'] }], creerRng(1));
+
+  assert.ok(!partie.champDeBataille.some((c) => c.instanceId === 'paysan#x'));
+  assert.ok(partie.hopital.some((c) => c.instanceId === 'paysan#x'));
+});
+
+test('Horde Gobelin (SPECIAL) : refuse une cible qui n’est pas un Paysan (symbole HUMAIN)', () => {
+  const objet = { instanceId: 'objet#x', type: /** @type {any} */ ({ id: 'objet', force: 1, symbole: 'OBJET' }) };
+  const p = scenario(
+    [ennemi('horde-gobelin', [{ type: 'SPECIAL', texte: 'envoyer un Paysan à l’Hôpital' }])],
+    { champDeBataille: [objet] },
+  );
+
+  assert.throws(
+    () => revelerAuxPortes(p, 0, [{ cibles: ['objet#x'] }], creerRng(1)),
+    /doit être un Paysan/,
+  );
+});
+
+test('Gobelin vachelier (SPECIAL) : envoie le Paysan le plus fort désigné à l’Hôpital', () => {
+  const faible = { instanceId: 'faible#x', type: /** @type {any} */ ({ id: 'faible', force: 1, symbole: 'HUMAIN' }) };
+  const fort = { instanceId: 'fort#x', type: /** @type {any} */ ({ id: 'fort', force: 3, symbole: 'HUMAIN' }) };
+  const p = scenario(
+    [ennemi('gobelin-vachelier', [{ type: 'SPECIAL', texte: 'envoyer le Paysan le plus fort à l’Hôpital' }])],
+    { champDeBataille: [faible, fort] },
+  );
+
+  const { partie } = revelerAuxPortes(p, 0, [{ cibles: ['fort#x'] }], creerRng(1));
+
+  assert.ok(partie.hopital.some((c) => c.instanceId === 'fort#x'));
+  assert.ok(partie.champDeBataille.some((c) => c.instanceId === 'faible#x'));
+});
+
+test('Gobelin vachelier (SPECIAL) : refuse une cible qui n’est pas le Paysan le plus fort', () => {
+  const faible = { instanceId: 'faible#x', type: /** @type {any} */ ({ id: 'faible', force: 1, symbole: 'HUMAIN' }) };
+  const fort = { instanceId: 'fort#x', type: /** @type {any} */ ({ id: 'fort', force: 3, symbole: 'HUMAIN' }) };
+  const p = scenario(
+    [ennemi('gobelin-vachelier', [{ type: 'SPECIAL', texte: 'envoyer le Paysan le plus fort à l’Hôpital' }])],
+    { champDeBataille: [faible, fort] },
+  );
+
+  assert.throws(
+    () => revelerAuxPortes(p, 0, [{ cibles: ['faible#x'] }], creerRng(1)),
+    /le plus fort/,
+  );
+});
+
+test('Gobelin vachelier (SPECIAL) : le jeton bonus compte dans la comparaison de force', () => {
+  const faibleBonus = {
+    instanceId: 'faible#x',
+    type: /** @type {any} */ ({ id: 'faible', force: 1, symbole: 'HUMAIN' }),
+    jetonBonus: 5,
+  };
+  const fort = { instanceId: 'fort#x', type: /** @type {any} */ ({ id: 'fort', force: 3, symbole: 'HUMAIN' }) };
+  const p = scenario(
+    [ennemi('gobelin-vachelier', [{ type: 'SPECIAL', texte: 'envoyer le Paysan le plus fort à l’Hôpital' }])],
+    { champDeBataille: [faibleBonus, fort] },
+  );
+
+  // faible (1 + 5 = 6) est en réalité plus fort que fort (3) une fois le jeton bonus compté.
+  assert.throws(
+    () => revelerAuxPortes(p, 0, [{ cibles: ['fort#x'] }], creerRng(1)),
+    /le plus fort/,
+  );
+});
+
 test('index hors bornes lève une erreur', () => {
   const p = scenario([]);
   assert.throws(() => revelerAuxPortes(p, 0, [], creerRng(1)), /Aucun ennemi/);
