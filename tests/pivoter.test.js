@@ -57,6 +57,13 @@ test('refuse une carte sans action Pivoter', () => {
   assert.throws(() => activerPivoter(p, 'garde#x', [], creerRng(1)), /pas d’action Pivoter/);
 });
 
+test('FORCE : pose un jeton bonus sur la carte activée elle-même (forme de Lames toxiques)', () => {
+  const p = scenario([carteAvecPivoter('lames', [{ type: 'OR', valeur: -1 }, { type: 'FORCE', valeur: 3 }])]);
+  const { partie } = activerPivoter(p, 'lames#x', [], creerRng(1));
+  assert.equal(partie.ressources, p.ressources - 1);
+  assert.equal(partie.champDeBataille[0]?.jetonBonus, 3);
+});
+
 test('propage les reconstitutions du Château depuis les effets exécutés', () => {
   const remplissage = Array.from({ length: 2 }, (_, i) => carte(`c${i}`));
   const p = {

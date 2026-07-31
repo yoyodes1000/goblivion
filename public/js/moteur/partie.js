@@ -9,7 +9,12 @@ import { phaseSuivante } from './phases.js';
 /** @typedef {import('./cartes/rois-reines.js').CarteRoiReine} CarteRoiReine */
 /** @typedef {import('./cartes/types.js').CarteAlliee} CarteAlliee */
 
-/** @typedef {{ instanceId: string, type: CarteAlliee }} InstanceAlliee */
+/**
+ * @typedef {object} InstanceAlliee
+ * @property {string} instanceId
+ * @property {CarteAlliee} type
+ * @property {number} [jetonBonus]   Jeton bonus de force posé par un effet FORCE (absent = 0).
+ */
 /** @typedef {{ instanceId: string, type: CarteEnnemi }} InstanceEnnemi */
 /** @typedef {{ instanceId: string, type: CarteBoss }} InstanceBoss */
 

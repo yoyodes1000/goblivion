@@ -70,3 +70,9 @@ test('sans action GARDE_DU_CORPS, l’échange n’a aucun effet de bord', () =>
   const r = echangerGardeDuCorps(p, 'sans-action#x', [], creerRng(1));
   assert.equal(r.champDeBataille.length, 1); // seulement l'ancien Garde du corps
 });
+
+test('FORCE dans une action GARDE_DU_CORPS cible la carte qui prend la place (aucune carte réelle ne l’utilise encore, vérifie juste le branchement)', () => {
+  const p = scenario([carte('espion', [{ type: 'FORCE', valeur: 2 }])]);
+  const r = echangerGardeDuCorps(p, 'espion#x', [], creerRng(1));
+  assert.equal(r.gardeDuCorps?.jetonBonus, 2);
+});

@@ -1,5 +1,4 @@
 // Moteur — calcul de la force au combat des cartes en jeu. Couche PURE.
-// (Les jetons bonus de force seront ajoutés quand ils seront modélisés.)
 
 /** @typedef {import('./partie.js').InstanceAlliee} InstanceAlliee */
 
@@ -13,22 +12,24 @@ function forceSoldat(nbSoldats) {
 }
 
 /**
- * Force au combat d'une carte alliée en jeu. Gère le barème du Soldat (force
- * variable). Les autres forces « VARIABLE » (ex. Joker) ne sont pas encore
- * gérées et valent 0 pour l'instant.
+ * Force au combat d'une carte alliée en jeu : sa force imprimée (ou le barème
+ * du Soldat, force variable) plus son éventuel jeton bonus (effet FORCE, voir
+ * `effets.js`). Les autres forces « VARIABLE » (ex. Joker) ne sont pas encore
+ * gérées et ne comptent que leur jeton bonus, le cas échéant.
  * @param {InstanceAlliee} carte
  * @param {readonly InstanceAlliee[]} champDeBataille
  * @returns {number}
  */
 export function forceCarte(carte, champDeBataille) {
+  const bonus = carte.jetonBonus ?? 0;
   if (typeof carte.type.force === 'number') {
-    return carte.type.force;
+    return carte.type.force + bonus;
   }
   if (carte.type.id === 'soldat') {
     const nbSoldats = champDeBataille.filter((c) => c.type.id === 'soldat').length;
-    return forceSoldat(nbSoldats);
+    return forceSoldat(nbSoldats) + bonus;
   }
-  return 0;
+  return bonus;
 }
 
 /**

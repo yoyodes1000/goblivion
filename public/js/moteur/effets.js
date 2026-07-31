@@ -5,17 +5,21 @@
 // branche (CHOIX) reçoivent leur cible en paramètre, via `choix` : le moteur
 // ne choisit jamais à la place du joueur, l'UI la fournira au clic.
 //
+// FORCE cible « la carte activée » elle-même (poser un jeton bonus sur la
+// carte dont l'action est en train de s'exécuter) — ce n'est pas un choix du
+// joueur, donc pas dans `choix` : l'appelant (le dispatcher, qui sait quelle
+// carte il active) le fournit via le paramètre `carteActiveeId`. Sans lui,
+// une action contenant FORCE lève une erreur explicite plutôt que de deviner
+// une cible.
+//
 // Détruire une carte (DETRUIRE_JEU/DETRUIRE_HOPITAL) déclenche son éventuelle
 // action TESTAMENT, exécutée récursivement via executerEffets.
 //
 // Pas encore gérés (lèvent une erreur explicite plutôt que de ne rien faire) :
-// - FORCE : poser un jeton bonus sur une carte alliée n'est pas encore
-//   modélisé (contrairement aux ennemis, qui ont déjà `jetonBonus`) — décision
-//   de conception à part entière.
-// - JETON_ENNEMI, ENNEMI_AVANCE : contexte ennemi/orchestration, pas
-//   nécessaires pour les actions PIVOTER des cartes alliées visées ici.
+// - JETON_ENNEMI, ENNEMI_AVANCE : contexte ennemi/orchestration — gérés par
+//   REVELATION directement (voir revelation.js), pas par cet exécuteur.
 // - CHOIX : la sélection de branche + ses sous-choix demande sa propre
-//   conception (imbrication), pas dans ce premier lot.
+//   conception (imbrication), pas dans ce lot.
 // - SPECIAL : propre à chaque carte, gestionnaires à écrire au cas par cas.
 
 import { piocher } from './pioche.js';
@@ -56,6 +60,33 @@ function defausser(partie, cibles) {
     });
   }
   return etat;
+}
+
+/**
+ * Ajoute un jeton bonus de force à la carte activée (effet FORCE) : sur le
+ * Champ de bataille (cas PIVOTER), ou en Garde du corps — retiré du Champ de
+ * bataille au moment où sa propre action GARDE_DU_CORPS s'exécute, donc pas
+ * cherché au même endroit.
+ * @param {Partie} partie
+ * @param {string} instanceId
+ * @param {number} valeur
+ * @returns {Partie}
+ */
+function ajouterJetonBonusAllie(partie, instanceId, valeur) {
+  if (partie.gardeDuCorps?.instanceId === instanceId) {
+    return Object.freeze({
+      ...partie,
+      gardeDuCorps: { ...partie.gardeDuCorps, jetonBonus: (partie.gardeDuCorps.jetonBonus ?? 0) + valeur },
+    });
+  }
+
+  const carte = partie.champDeBataille.find((c) => c.instanceId === instanceId);
+  if (!carte) throw new Error(`FORCE : carte activée absente du Champ de bataille (${instanceId})`);
+
+  const champDeBataille = partie.champDeBataille.map((c) =>
+    c.instanceId === instanceId ? { ...c, jetonBonus: (c.jetonBonus ?? 0) + valeur } : c,
+  );
+  return Object.freeze({ ...partie, champDeBataille });
 }
 
 /**
@@ -131,13 +162,17 @@ function genererVision(partie, indexPiste) {
  * Exécute une suite d'effets (l'`effets` d'une `Action`), dans l'ordre.
  * `choix[i]` fournit la décision du joueur pour `effets[i]` quand il en faut
  * une (voir `Choix`) ; absent pour PIOCHER/OR, qui n'en ont pas besoin.
+ * `carteActiveeId` est la cible de FORCE (« la carte activée ») — fourni par
+ * l'appelant, jamais par `choix` ; absent, une action avec FORCE lève une
+ * erreur explicite.
  * @param {Partie} partie
  * @param {readonly Effet[]} effets
  * @param {readonly (Choix | undefined)[]} choix
  * @param {() => number} rng
+ * @param {string} [carteActiveeId]
  * @returns {{ partie: Partie, reconstitutions: number }}
  */
-export function executerEffets(partie, effets, choix, rng) {
+export function executerEffets(partie, effets, choix, rng, carteActiveeId) {
   let etat = partie;
   let reconstitutions = 0;
 
@@ -188,6 +223,12 @@ export function executerEffets(partie, effets, choix, rng) {
         const r = detruireHopital(etat, cible, c?.choixTestament ?? [], rng);
         etat = r.partie;
         reconstitutions += r.reconstitutions;
+        break;
+      }
+
+      case 'FORCE': {
+        if (!carteActiveeId) throw new Error('FORCE : aucune carte activée dans ce contexte');
+        etat = ajouterJetonBonusAllie(etat, carteActiveeId, effet.valeur ?? 0);
         break;
       }
 

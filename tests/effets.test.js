@@ -142,11 +142,45 @@ test('VISION : refuse si le nombre de cases visées ne correspond pas à `valeur
   );
 });
 
-test('un effet pas encore géré (ex. FORCE) lève une erreur explicite plutôt que de ne rien faire', () => {
+test('un effet pas encore géré (ex. CHOIX) lève une erreur explicite plutôt que de ne rien faire', () => {
   const p = scenario([]);
   assert.throws(
-    () => executerEffets(p, [{ type: 'FORCE', valeur: 2 }], [], creerRng(1)),
+    () => executerEffets(p, [{ type: 'CHOIX', options: [] }], [], creerRng(1)),
     /non encore exécutable/,
+  );
+});
+
+test('FORCE : ajoute un jeton bonus à la carte activée', () => {
+  const p = scenario([carte('gentilhomme')]);
+  const { partie } = executerEffets(p, [{ type: 'FORCE', valeur: 2 }], [], creerRng(1), 'gentilhomme#x');
+  assert.equal(partie.champDeBataille[0]?.jetonBonus, 2);
+});
+
+test('FORCE : les jetons bonus s’accumulent', () => {
+  const p = scenario([carte('gentilhomme')]);
+  const { partie } = executerEffets(
+    p,
+    [{ type: 'FORCE', valeur: 2 }, { type: 'FORCE', valeur: 1 }],
+    [],
+    creerRng(1),
+    'gentilhomme#x',
+  );
+  assert.equal(partie.champDeBataille[0]?.jetonBonus, 3);
+});
+
+test('FORCE : lève une erreur sans carte activée', () => {
+  const p = scenario([carte('gentilhomme')]);
+  assert.throws(
+    () => executerEffets(p, [{ type: 'FORCE', valeur: 2 }], [], creerRng(1)),
+    /aucune carte activée/,
+  );
+});
+
+test('FORCE : lève une erreur si la carte activée est absente du Champ de bataille', () => {
+  const p = scenario([]);
+  assert.throws(
+    () => executerEffets(p, [{ type: 'FORCE', valeur: 2 }], [], creerRng(1), 'inconnue#x'),
+    /absente du Champ de bataille/,
   );
 });
 
