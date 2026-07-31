@@ -4,12 +4,16 @@
 // `carteActiveeTypeId` — jamais directement par les dispatchers.
 //
 // Le pouvoir Roi/Reine (POUVOIR) n'utilise PAS ce registre : sa cible n'est
-// pas une carte cherchée par id, mais `partie.roiReine` directement — un
-// registre séparé, à sa propre clé (`roiReine.id`), viendra avec ce lot-là.
+// pas une carte cherchée par id, mais `partie.roiReine` directement. Registre
+// séparé plus bas, `pouvoirsSpecial`, à sa propre clé (`roiReine.id`) —
+// mélanger les deux espaces de noms dans un seul registre serait fragile
+// pour un gain nul. Appelé directement par `pouvoir.js` (pas par
+// `executerEffets`, qui ne connaît que `gestionnairesSpecial`).
 
-import { paysansBase } from './cartes/index.js';
+import { paysansBase, dores } from './cartes/index.js';
 import { ajouterJetonBonusAllie } from './partie.js';
 import { forceCarte } from './force.js';
+import { melanger } from './aleatoire.js';
 
 /** @typedef {import('./partie.js').Partie} Partie */
 /** @typedef {import('./partie.js').InstanceAlliee} InstanceAlliee */
@@ -17,6 +21,10 @@ import { forceCarte } from './force.js';
 
 /**
  * @typedef {(partie: Partie, choix: Choix | undefined, rng: () => number, carteActiveeId: string | undefined) => Partie} GestionnaireSpecial
+ */
+
+/**
+ * @typedef {(partie: Partie, choix: Choix | undefined, rng: () => number) => Partie} GestionnairePouvoir
  */
 
 /**
@@ -207,5 +215,93 @@ export const gestionnairesSpecial = {
     }
 
     return envoyerHopital(partie, carte);
+  },
+};
+
+/** @type {Record<string, GestionnairePouvoir>} */
+export const pouvoirsSpecial = {
+  /**
+   * Loko : chaque Paysan (symbole HUMAIN) en jeu gagne un jeton +2 force.
+   * Même forme que Cape royale/Nain, juste +2 au lieu de +1.
+   */
+  loko(partie) {
+    const champDeBataille = partie.champDeBataille.map((c) =>
+      c.type.symbole === 'HUMAIN' ? { ...c, jetonBonus: (c.jetonBonus ?? 0) + 2 } : c,
+    );
+    return Object.freeze({ ...partie, champDeBataille });
+  },
+
+  /**
+   * Bella : réactive 2 cartes en jeu, c'est-à-dire retire 2 `instanceId`
+   * distincts de `cartesActivees`. Désignées par `choix.cibles`, jamais
+   * choisies par le moteur — même si le joueur n'a par exemple activé que 2
+   * cartes ce tour-là.
+   */
+  bella(partie, choix) {
+    const cibles = choix?.cibles ?? [];
+    if (new Set(cibles).size !== 2) throw new Error('Bella : exactement 2 cibles distinctes attendues');
+    for (const id of cibles) {
+      if (!partie.cartesActivees.includes(id)) throw new Error(`Bella : carte non activée (${id})`);
+    }
+    return Object.freeze({
+      ...partie,
+      cartesActivees: partie.cartesActivees.filter((id) => !cibles.includes(id)),
+    });
+  },
+
+  /**
+   * Margot : mélange l'Hôpital à son Château.
+   */
+  margot(partie, choix, rng) {
+    return Object.freeze({
+      ...partie,
+      chateau: melanger([...partie.chateau, ...partie.hopital], rng),
+      hopital: [],
+    });
+  },
+
+  /**
+   * Yolo : choisit une carte du Château (pas du Champ de bataille ni de
+   * l'Hôpital) et la pose en jeu. Désignée par `choix.cibles` (instanceId,
+   * sens habituel).
+   */
+  yolo(partie, choix) {
+    const [cible, ...reste] = choix?.cibles ?? [];
+    if (!cible || reste.length > 0) throw new Error('Yolo : une seule cible attendue');
+    const carte = partie.chateau.find((c) => c.instanceId === cible);
+    if (!carte) throw new Error(`Yolo : carte absente du Château (${cible})`);
+    return Object.freeze({
+      ...partie,
+      chateau: partie.chateau.filter((c) => c.instanceId !== cible),
+      champDeBataille: [...partie.champDeBataille, carte],
+    });
+  },
+
+  /**
+   * Brod : obtient un Objet du marché et le pose en jeu (le coût, -3 or, est
+   * un effet OR séparé dans son pouvoir, pas géré ici). « Le marché » ne
+   * peut désigner que `marcheDore` — seul marché du moteur — et « un Objet »
+   * une carte Doré de `symbole: 'OBJET'` (Protecteur mécanique, Catapulte) :
+   * les cartes Objet (récompenses d'ennemis vaincus) ne sont vendues nulle
+   * part. Obtenue directement, sans le rituel complet d'entraînement
+   * (piocher / cible de force / sacrifice) — juste décrémentée du marché.
+   * `choix.cibles` désigne ici exceptionnellement un `dore.id` (id de type),
+   * pas un `instanceId` : la carte n'existe pas encore en tant qu'instance
+   * avant d'être obtenue.
+   */
+  brod(partie, choix) {
+    const [doreId, ...reste] = choix?.cibles ?? [];
+    if (!doreId || reste.length > 0) throw new Error('Brod : une seule cible attendue');
+
+    const dore = dores.find((d) => d.id === doreId);
+    if (!dore) throw new Error(`Brod : carte Doré inconnue (${doreId})`);
+    if (dore.symbole !== 'OBJET') throw new Error('Brod : la cible doit être un Objet (symbole OBJET)');
+
+    const pile = partie.marcheDore.find((m) => m.typeId === doreId);
+    if (!pile || pile.restant <= 0) throw new Error(`Brod : aucun exemplaire de ${dore.nom} au marché`);
+
+    const instance = { instanceId: `${dore.id}#brod-t${partie.tour}`, type: dore };
+    const marcheDore = partie.marcheDore.map((m) => (m.typeId === doreId ? { ...m, restant: m.restant - 1 } : m));
+    return Object.freeze({ ...partie, marcheDore, champDeBataille: [...partie.champDeBataille, instance] });
   },
 };
