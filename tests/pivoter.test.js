@@ -165,6 +165,113 @@ test('Casque à cornes (SPECIAL) : chaque carte Bleu (Paysan de base) en jeu gag
   assert.equal(partie.champDeBataille.find((c) => c.instanceId === 'dore#x')?.jetonBonus, undefined);
 });
 
+test('Chapeau magique (SPECIAL) : copie l’action Pivoter de la carte désignée', () => {
+  const chapeau = carteAvecPivoter('chapeau-magique', [
+    { type: 'SPECIAL', texte: 'copier une action pivoter d’une carte en jeu' },
+  ]);
+  const boulanger = carteAvecPivoter('boulanger', [{ type: 'OR', valeur: 2 }]);
+
+  const p = scenario([chapeau, boulanger]);
+  const { partie } = activerPivoter(p, 'chapeau-magique#x', [{ cibles: ['boulanger#x'] }], creerRng(1));
+
+  assert.equal(partie.ressources, p.ressources + 2);
+  assert.deepEqual(partie.cartesActivees, ['chapeau-magique#x']); // la cible n'est pas « utilisée »
+});
+
+test('Chapeau magique (SPECIAL) : un FORCE copié pose son jeton sur le Chapeau, pas sur la cible', () => {
+  const chapeau = carteAvecPivoter('chapeau-magique', [
+    { type: 'SPECIAL', texte: 'copier une action pivoter d’une carte en jeu' },
+  ]);
+  const lames = carteAvecPivoter('lames', [{ type: 'OR', valeur: -1 }, { type: 'FORCE', valeur: 3 }]);
+
+  const p = scenario([chapeau, lames]);
+  const { partie } = activerPivoter(p, 'chapeau-magique#x', [{ cibles: ['lames#x'] }], creerRng(1));
+
+  assert.equal(partie.champDeBataille.find((c) => c.instanceId === 'chapeau-magique#x')?.jetonBonus, 3);
+  assert.equal(partie.champDeBataille.find((c) => c.instanceId === 'lames#x')?.jetonBonus, undefined);
+});
+
+test('Chapeau magique (SPECIAL) : copie une cible déjà pivotée', () => {
+  const chapeau = carteAvecPivoter('chapeau-magique', [
+    { type: 'SPECIAL', texte: 'copier une action pivoter d’une carte en jeu' },
+  ]);
+  const boulanger = carteAvecPivoter('boulanger', [{ type: 'OR', valeur: 2 }]);
+
+  const p = scenario([chapeau, boulanger]);
+  const { partie: apresBoulanger } = activerPivoter(p, 'boulanger#x', [], creerRng(1));
+  const { partie } = activerPivoter(apresBoulanger, 'chapeau-magique#x', [{ cibles: ['boulanger#x'] }], creerRng(1));
+
+  assert.equal(partie.ressources, p.ressources + 4); // 2 (boulanger) + 2 (copie)
+});
+
+test('Chapeau magique (SPECIAL) : un SPECIAL copié se résout via le type.id de la cible', () => {
+  const chapeau = carteAvecPivoter('chapeau-magique', [
+    { type: 'SPECIAL', texte: 'copier une action pivoter d’une carte en jeu' },
+  ]);
+  const nain = carteAvecPivoter('nain', [{ type: 'SPECIAL', texte: 'chaque Objet en jeu gagne +1 force' }]);
+  const epee = { instanceId: 'epee#x', type: /** @type {any} */ ({ id: 'epee', force: 1, symbole: 'OBJET' }) };
+
+  const p = scenario([chapeau, nain, epee]);
+  const { partie } = activerPivoter(p, 'chapeau-magique#x', [{ cibles: ['nain#x'] }], creerRng(1));
+
+  assert.equal(partie.champDeBataille.find((c) => c.instanceId === 'epee#x')?.jetonBonus, 1);
+});
+
+test('Chapeau magique (SPECIAL) : refuse de se copier lui-même (récursion infinie)', () => {
+  const chapeau = carteAvecPivoter('chapeau-magique', [
+    { type: 'SPECIAL', texte: 'copier une action pivoter d’une carte en jeu' },
+  ]);
+  const p = scenario([chapeau]);
+
+  assert.throws(
+    () => activerPivoter(p, 'chapeau-magique#x', [{ cibles: ['chapeau-magique#x'] }], creerRng(1)),
+    /se copier lui-même/,
+  );
+});
+
+test('Chapeau magique (SPECIAL) : refuse une cible sans action Pivoter', () => {
+  const chapeau = carteAvecPivoter('chapeau-magique', [
+    { type: 'SPECIAL', texte: 'copier une action pivoter d’une carte en jeu' },
+  ]);
+  const p = scenario([chapeau, carte('garde')]);
+
+  assert.throws(
+    () => activerPivoter(p, 'chapeau-magique#x', [{ cibles: ['garde#x'] }], creerRng(1)),
+    /pas d’action Pivoter/,
+  );
+});
+
+test('Chapeau magique (SPECIAL) : les sous-choix de l’action copiée viennent de choixCopie', () => {
+  const chapeau = carteAvecPivoter('chapeau-magique', [
+    { type: 'SPECIAL', texte: 'copier une action pivoter d’une carte en jeu' },
+  ]);
+  const bourreau = carteAvecPivoter('bourreau', [{ type: 'DETRUIRE_JEU' }]);
+  const victime = carte('victime');
+
+  const p = scenario([chapeau, bourreau, victime]);
+  const { partie } = activerPivoter(
+    p,
+    'chapeau-magique#x',
+    [{ cibles: ['bourreau#x'], choixCopie: [{ cibles: ['victime#x'] }] }],
+    creerRng(1),
+  );
+
+  assert.ok(!partie.champDeBataille.some((c) => c.instanceId === 'victime#x'));
+});
+
+test('Chapeau magique (SPECIAL) : propage les reconstitutions du Château de l’action copiée', () => {
+  const chapeau = carteAvecPivoter('chapeau-magique', [
+    { type: 'SPECIAL', texte: 'copier une action pivoter d’une carte en jeu' },
+  ]);
+  const scout = carteAvecPivoter('scout', [{ type: 'PIOCHER', valeur: 2 }]);
+  const remplissage = Array.from({ length: 2 }, (_, i) => carte(`c${i}`));
+
+  const p = { ...scenario([chapeau, scout]), chateau: [], hopital: remplissage };
+  const { reconstitutions } = activerPivoter(p, 'chapeau-magique#x', [{ cibles: ['scout#x'] }], creerRng(1));
+
+  assert.equal(reconstitutions, 1);
+});
+
 test('CHOIX : au choix, +2 force OU vision 1 (forme de Scouts)', () => {
   const scouts = carteAvecPivoter('scouts', [
     { type: 'CHOIX', options: [[{ type: 'FORCE', valeur: 2 }], [{ type: 'VISION', valeur: 1 }]] },

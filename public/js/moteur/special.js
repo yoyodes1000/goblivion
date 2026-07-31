@@ -18,16 +18,21 @@ import { melanger } from './aleatoire.js';
 /** @typedef {import('./partie.js').Partie} Partie */
 /** @typedef {import('./partie.js').InstanceAlliee} InstanceAlliee */
 /** @typedef {import('./effets.js').Choix} Choix */
-/** @typedef {typeof import('./effets.js').detruireEnJeu} DetruireEnJeu */
+/**
+ * Machinerie d'`effets.js` injectée aux gestionnaires qui en ont besoin (voir
+ * l'en-tête d'`effets.js`) : `detruireEnJeu` pour détruire une carte avec son
+ * éventuel TESTAMENT, `executerEffets` pour exécuter une suite d'effets
+ * arbitraire.
+ * @typedef {object} OutilsSpecial
+ * @property {typeof import('./effets.js').detruireEnJeu} detruireEnJeu
+ * @property {typeof import('./effets.js').executerEffets} executerEffets
+ */
 
 /**
- * `detruireEnJeu` est injecté par `effets.js` (voir son en-tête) pour les
- * gestionnaires qui doivent détruire une carte avec son éventuel TESTAMENT —
- * ex. Sorcière troll. Un gestionnaire qui l'utilise renvoie alors son
- * résultat tel quel (`{ partie, reconstitutions }`) plutôt qu'un `Partie` nu,
- * pour que les reconstitutions du Château provoquées par le TESTAMENT
- * remontent jusqu'à l'appelant.
- * @typedef {(partie: Partie, choix: Choix | undefined, rng: () => number, carteActiveeId: string | undefined, detruireEnJeu: DetruireEnJeu) => Partie | { partie: Partie, reconstitutions: number }} GestionnaireSpecial
+ * Un gestionnaire qui utilise `outils` renvoie le résultat tel quel
+ * (`{ partie, reconstitutions }`) plutôt qu'un `Partie` nu, pour que les
+ * reconstitutions du Château remontent jusqu'à l'appelant.
+ * @typedef {(partie: Partie, choix: Choix | undefined, rng: () => number, carteActiveeId: string | undefined, outils: OutilsSpecial) => Partie | { partie: Partie, reconstitutions: number }} GestionnaireSpecial
  */
 
 /**
@@ -244,22 +249,49 @@ export const gestionnairesSpecial = {
    * de bataille — comme DETRUIRE_JEU, TESTAMENT éventuel compris, via la
    * fonction injectée `detruireEnJeu` (voir le typedef `GestionnaireSpecial`).
    */
-  'sorciere-troll'(partie, choix, rng, carteActiveeId, detruireEnJeu) {
+  'sorciere-troll'(partie, choix, rng, carteActiveeId, outils) {
     const [cible, ...reste] = choix?.cibles ?? [];
     if (!cible || reste.length > 0) throw new Error('Sorcière troll : une seule cible attendue');
     trouverPaysanCible(partie, cible, 'Sorcière troll');
-    return detruireEnJeu(partie, cible, choix?.choixTestament ?? [], rng);
+    return outils.detruireEnJeu(partie, cible, choix?.choixTestament ?? [], rng);
   },
 
   /**
    * Booba Brise-Fer (REVELATION) : détruit l'Objet (OBJET) désigné du Champ
    * de bataille — même mécanisme que Sorcière troll, sur l'autre symbole.
    */
-  'booba-brise-fer'(partie, choix, rng, carteActiveeId, detruireEnJeu) {
+  'booba-brise-fer'(partie, choix, rng, carteActiveeId, outils) {
     const [cible, ...reste] = choix?.cibles ?? [];
     if (!cible || reste.length > 0) throw new Error('Booba Brise-Fer : une seule cible attendue');
     trouverObjetCible(partie, cible, 'Booba Brise-Fer');
-    return detruireEnJeu(partie, cible, choix?.choixTestament ?? [], rng);
+    return outils.detruireEnJeu(partie, cible, choix?.choixTestament ?? [], rng);
+  },
+
+  /**
+   * Chapeau magique (PIVOTER) : copie l'action Pivoter d'une autre carte du
+   * Champ de bataille, y compris une carte déjà pivotée — la cible sert de
+   * modèle, elle n'est pas « utilisée » (elle ne rejoint donc pas
+   * `cartesActivees`, et ce n'est pas non plus une réactivation, qui est le
+   * pouvoir de Bella).
+   *
+   * Les effets copiés s'exécutent au profit du Chapeau magique : un FORCE
+   * copié pose son jeton sur LUI (`carteActiveeId` inchangé), sans quoi
+   * copier reviendrait à réactiver la cible. En revanche un SPECIAL copié se
+   * résout via le `type.id` de la CIBLE — sinon il rappellerait ce
+   * gestionnaire-ci, en boucle.
+   */
+  'chapeau-magique'(partie, choix, rng, carteActiveeId, outils) {
+    const [cible, ...reste] = choix?.cibles ?? [];
+    if (!cible || reste.length > 0) throw new Error('Chapeau magique : une seule cible attendue');
+    if (cible === carteActiveeId) throw new Error('Chapeau magique : ne peut pas se copier lui-même');
+
+    const carte = partie.champDeBataille.find((c) => c.instanceId === cible);
+    if (!carte) throw new Error(`Chapeau magique : carte absente du Champ de bataille (${cible})`);
+
+    const action = carte.type.actions.find((a) => a.declencheur === 'PIVOTER');
+    if (!action) throw new Error('Chapeau magique : la cible n’a pas d’action Pivoter');
+
+    return outils.executerEffets(partie, action.effets, choix?.choixCopie ?? [], rng, carteActiveeId, carte.type.id);
   },
 };
 

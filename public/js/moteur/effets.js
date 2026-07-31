@@ -18,14 +18,15 @@
 // recherche dans une zone). Sans gestionnaire trouvé, lève une erreur
 // explicite plutôt que de ne rien faire.
 //
-// Certains gestionnaires SPECIAL ont besoin de détruire une carte (avec son
-// éventuel TESTAMENT) — ex. Sorcière troll, Booba Brise-Fer. Cette machinerie
-// vit ici (`detruireEnJeu`), pas dans `special.js`, qui ne peut pas l'importer
-// sans créer un cycle (ce fichier importe déjà `special.js`). Elle lui est
-// donc *injectée* en paramètre, sur le même principe que `rng` et
-// `carteActiveeId` : le gestionnaire peut alors renvoyer soit un `Partie`
-// (cas courant), soit `{ partie, reconstitutions }` s'il a détruit une carte
-// dont le TESTAMENT a pioché (voir le cas 'SPECIAL' ci-dessous).
+// Certains gestionnaires SPECIAL ont besoin de la machinerie de ce fichier :
+// détruire une carte avec son éventuel TESTAMENT (Sorcière troll, Booba
+// Brise-Fer), ou exécuter une suite d'effets arbitraire (Chapeau magique, qui
+// copie l'action Pivoter d'une autre carte). Elle vit ici, pas dans
+// `special.js`, qui ne peut pas l'importer sans créer un cycle (ce fichier
+// importe déjà `special.js`). Elle lui est donc *injectée* via l'objet
+// `outils`, sur le même principe que `rng` et `carteActiveeId` : le
+// gestionnaire peut alors renvoyer soit un `Partie` (cas courant), soit
+// `{ partie, reconstitutions }` s'il a pioché (voir le cas 'SPECIAL').
 //
 // Détruire une carte (DETRUIRE_JEU/DETRUIRE_HOPITAL) déclenche son éventuelle
 // action TESTAMENT, exécutée récursivement via executerEffets.
@@ -57,13 +58,15 @@ import { gestionnairesSpecial } from './special.js';
  * vision générée), `choixTestament` pour DETRUIRE_JEU/DETRUIRE_HOPITAL — le
  * choix de l'action TESTAMENT que la carte détruite déclenche, le cas échéant.
  * `branche`/`choixBranche` pour CHOIX : l'index choisi dans `effet.options`,
- * et les choix pour les effets de cette branche.
+ * et les choix pour les effets de cette branche. `choixCopie` pour le Chapeau
+ * magique : les choix des effets de l'action Pivoter copiée.
  * @typedef {object} Choix
  * @property {readonly string[]} [cibles]
  * @property {readonly number[]} [indexPiste]
  * @property {readonly (Choix | undefined)[]} [choixTestament]
  * @property {number} [branche]
  * @property {readonly (Choix | undefined)[]} [choixBranche]
+ * @property {readonly (Choix | undefined)[]} [choixCopie]
  */
 
 /**
@@ -234,7 +237,7 @@ export function executerEffets(partie, effets, choix, rng, carteActiveeId, carte
       case 'SPECIAL': {
         const gestionnaire = carteActiveeTypeId ? gestionnairesSpecial[carteActiveeTypeId] : undefined;
         if (!gestionnaire) throw new Error(`SPECIAL non encore exécutable : ${effet.texte}`);
-        const resultat = gestionnaire(etat, c, rng, carteActiveeId, detruireEnJeu);
+        const resultat = gestionnaire(etat, c, rng, carteActiveeId, { detruireEnJeu, executerEffets });
         if ('reconstitutions' in resultat) {
           etat = resultat.partie;
           reconstitutions += resultat.reconstitutions;
