@@ -83,6 +83,88 @@ test('Nain (SPECIAL) : chaque Objet en jeu gagne +1 force, résolu via type.id',
   assert.equal(partie.champDeBataille.find((c) => c.instanceId === 'paysan#x')?.jetonBonus, undefined);
 });
 
+test('Protecteur mécanique (SPECIAL) : +1 jeton bonus sur lui-même par Objet à l’Hôpital', () => {
+  const protecteur = carteAvecPivoter('protecteur-mecanique', [
+    { type: 'SPECIAL', texte: '+1 force pour chaque Objet à l’Hôpital' },
+  ]);
+  const objet1 = { instanceId: 'o1#x', type: /** @type {any} */ ({ id: 'o1', force: 0, symbole: 'OBJET' }) };
+  const objet2 = { instanceId: 'o2#x', type: /** @type {any} */ ({ id: 'o2', force: 0, symbole: 'OBJET' }) };
+  const paysan = { instanceId: 'p1#x', type: /** @type {any} */ ({ id: 'p1', force: 0, symbole: 'HUMAIN' }) };
+
+  const p = { ...scenario([protecteur]), hopital: [objet1, objet2, paysan] };
+  const { partie } = activerPivoter(p, 'protecteur-mecanique#x', [], creerRng(1));
+
+  assert.equal(partie.champDeBataille.find((c) => c.instanceId === 'protecteur-mecanique#x')?.jetonBonus, 2);
+});
+
+test('Forgeron (SPECIAL) : ramène un Objet de l’Hôpital en jeu, sans bonus', () => {
+  const forgeron = carteAvecPivoter('forgeron', [{ type: 'SPECIAL', texte: 'ramener un Objet de l’Hôpital en jeu' }]);
+  const objet = { instanceId: 'objet#x', type: /** @type {any} */ ({ id: 'objet', force: 1, symbole: 'OBJET' }) };
+
+  const p = { ...scenario([forgeron]), hopital: [objet] };
+  const { partie } = activerPivoter(p, 'forgeron#x', [{ cibles: ['objet#x'] }], creerRng(1));
+
+  const ramene = partie.champDeBataille.find((c) => c.instanceId === 'objet#x');
+  assert.ok(ramene);
+  assert.equal(ramene?.jetonBonus, undefined);
+  assert.ok(!partie.hopital.some((c) => c.instanceId === 'objet#x'));
+});
+
+test('Forgeron (SPECIAL) : refuse une cible qui n’est pas un Objet (symbole OBJET)', () => {
+  const forgeron = carteAvecPivoter('forgeron', [{ type: 'SPECIAL', texte: 'ramener un Objet de l’Hôpital en jeu' }]);
+  const paysan = { instanceId: 'paysan#x', type: /** @type {any} */ ({ id: 'paysan', force: 0, symbole: 'HUMAIN' }) };
+
+  const p = { ...scenario([forgeron]), hopital: [paysan] };
+  assert.throws(
+    () => activerPivoter(p, 'forgeron#x', [{ cibles: ['paysan#x'] }], creerRng(1)),
+    /doit être un Objet/,
+  );
+});
+
+test('Aimant (SPECIAL) : même effet que Forgeron (texte identique, gestionnaire partagé)', () => {
+  const aimant = carteAvecPivoter('aimant', [{ type: 'SPECIAL', texte: 'ramener un Objet de l’Hôpital en jeu' }]);
+  const objet = { instanceId: 'objet#x', type: /** @type {any} */ ({ id: 'objet', force: 1, symbole: 'OBJET' }) };
+
+  const p = { ...scenario([aimant]), hopital: [objet] };
+  const { partie } = activerPivoter(p, 'aimant#x', [{ cibles: ['objet#x'] }], creerRng(1));
+
+  assert.ok(partie.champDeBataille.some((c) => c.instanceId === 'objet#x'));
+});
+
+test('Épée de feu (SPECIAL) : double le jeton bonus d’une carte du Champ de bataille', () => {
+  const epee = carteAvecPivoter('epee-de-feu', [{ type: 'SPECIAL', texte: 'doubler les jetons bonus d’une carte en jeu' }]);
+  const cible = { instanceId: 'cible#x', type: /** @type {any} */ ({ id: 'cible', force: 1 }), jetonBonus: 3 };
+
+  const p = scenario([epee, cible]);
+  const { partie } = activerPivoter(p, 'epee-de-feu#x', [{ cibles: ['cible#x'] }], creerRng(1));
+
+  assert.equal(partie.champDeBataille.find((c) => c.instanceId === 'cible#x')?.jetonBonus, 6);
+});
+
+test('Cape royale (SPECIAL) : chaque Paysan (symbole HUMAIN) en jeu gagne +1 force', () => {
+  const cape = carteAvecPivoter('cape-royale', [{ type: 'SPECIAL', texte: 'chaque Paysan gagne un jeton +1 force' }]);
+  const paysan = { instanceId: 'paysan#x', type: /** @type {any} */ ({ id: 'paysan', force: 0, symbole: 'HUMAIN' }) };
+  const objet = { instanceId: 'objet#x', type: /** @type {any} */ ({ id: 'objet', force: 0, symbole: 'OBJET' }) };
+
+  const p = scenario([cape, paysan, objet]);
+  const { partie } = activerPivoter(p, 'cape-royale#x', [], creerRng(1));
+
+  assert.equal(partie.champDeBataille.find((c) => c.instanceId === 'paysan#x')?.jetonBonus, 1);
+  assert.equal(partie.champDeBataille.find((c) => c.instanceId === 'objet#x')?.jetonBonus, undefined);
+});
+
+test('Casque à cornes (SPECIAL) : chaque carte Bleu (Paysan de base) en jeu gagne +1 force', () => {
+  const casque = carteAvecPivoter('casque-a-cornes', [{ type: 'SPECIAL', texte: 'les cartes Bleu gagnent +1 force' }]);
+  const fermier = { instanceId: 'fermier#x', type: /** @type {any} */ ({ id: 'fermier', force: 0 }) }; // vraie carte Bleu
+  const dore = { instanceId: 'dore#x', type: /** @type {any} */ ({ id: 'catapulte', force: 3 }) }; // vraie carte Doré
+
+  const p = scenario([casque, fermier, dore]);
+  const { partie } = activerPivoter(p, 'casque-a-cornes#x', [], creerRng(1));
+
+  assert.equal(partie.champDeBataille.find((c) => c.instanceId === 'fermier#x')?.jetonBonus, 1);
+  assert.equal(partie.champDeBataille.find((c) => c.instanceId === 'dore#x')?.jetonBonus, undefined);
+});
+
 test('propage les reconstitutions du Château depuis les effets exécutés', () => {
   const remplissage = Array.from({ length: 2 }, (_, i) => carte(`c${i}`));
   const p = {

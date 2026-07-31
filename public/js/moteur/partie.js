@@ -103,3 +103,32 @@ export function viderChampDeBataille(partie) {
 export function estPerdue(partie) {
   return partie.ressources <= 0;
 }
+
+/**
+ * Ajoute un jeton bonus de force à une carte alliée activée (effets FORCE et
+ * SPECIAL) : sur le Champ de bataille (cas PIVOTER), ou en Garde du corps —
+ * retiré du Champ de bataille au moment où sa propre action GARDE_DU_CORPS
+ * s'exécute, donc pas cherché au même endroit. Ici plutôt que dans
+ * `effets.js` pour que `special.js` puisse la réutiliser sans import
+ * circulaire (`effets.js` importe déjà `special.js`).
+ * @param {Partie} partie
+ * @param {string} instanceId
+ * @param {number} valeur
+ * @returns {Partie}
+ */
+export function ajouterJetonBonusAllie(partie, instanceId, valeur) {
+  if (partie.gardeDuCorps?.instanceId === instanceId) {
+    return Object.freeze({
+      ...partie,
+      gardeDuCorps: { ...partie.gardeDuCorps, jetonBonus: (partie.gardeDuCorps.jetonBonus ?? 0) + valeur },
+    });
+  }
+
+  const carte = partie.champDeBataille.find((c) => c.instanceId === instanceId);
+  if (!carte) throw new Error(`Carte activée absente du Champ de bataille (${instanceId})`);
+
+  const champDeBataille = partie.champDeBataille.map((c) =>
+    c.instanceId === instanceId ? { ...c, jetonBonus: (c.jetonBonus ?? 0) + valeur } : c,
+  );
+  return Object.freeze({ ...partie, champDeBataille });
+}

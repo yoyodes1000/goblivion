@@ -28,7 +28,7 @@
 //   conception (imbrication), pas dans ce lot.
 
 import { piocher } from './pioche.js';
-import { ajusterRessources } from './partie.js';
+import { ajusterRessources, ajouterJetonBonusAllie } from './partie.js';
 import { revelerSurPiste } from './ennemi-avance.js';
 import { gestionnairesSpecial } from './special.js';
 
@@ -66,33 +66,6 @@ function defausser(partie, cibles) {
     });
   }
   return etat;
-}
-
-/**
- * Ajoute un jeton bonus de force à la carte activée (effet FORCE) : sur le
- * Champ de bataille (cas PIVOTER), ou en Garde du corps — retiré du Champ de
- * bataille au moment où sa propre action GARDE_DU_CORPS s'exécute, donc pas
- * cherché au même endroit.
- * @param {Partie} partie
- * @param {string} instanceId
- * @param {number} valeur
- * @returns {Partie}
- */
-function ajouterJetonBonusAllie(partie, instanceId, valeur) {
-  if (partie.gardeDuCorps?.instanceId === instanceId) {
-    return Object.freeze({
-      ...partie,
-      gardeDuCorps: { ...partie.gardeDuCorps, jetonBonus: (partie.gardeDuCorps.jetonBonus ?? 0) + valeur },
-    });
-  }
-
-  const carte = partie.champDeBataille.find((c) => c.instanceId === instanceId);
-  if (!carte) throw new Error(`FORCE : carte activée absente du Champ de bataille (${instanceId})`);
-
-  const champDeBataille = partie.champDeBataille.map((c) =>
-    c.instanceId === instanceId ? { ...c, jetonBonus: (c.jetonBonus ?? 0) + valeur } : c,
-  );
-  return Object.freeze({ ...partie, champDeBataille });
 }
 
 /**
@@ -243,7 +216,7 @@ export function executerEffets(partie, effets, choix, rng, carteActiveeId, carte
       case 'SPECIAL': {
         const gestionnaire = carteActiveeTypeId ? gestionnairesSpecial[carteActiveeTypeId] : undefined;
         if (!gestionnaire) throw new Error(`SPECIAL non encore exécutable : ${effet.texte}`);
-        etat = gestionnaire(etat, c, rng);
+        etat = gestionnaire(etat, c, rng, carteActiveeId);
         break;
       }
 
