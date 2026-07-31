@@ -165,6 +165,17 @@ test('Casque à cornes (SPECIAL) : chaque carte Bleu (Paysan de base) en jeu gag
   assert.equal(partie.champDeBataille.find((c) => c.instanceId === 'dore#x')?.jetonBonus, undefined);
 });
 
+test('CHOIX : au choix, +2 force OU vision 1 (forme de Scouts)', () => {
+  const scouts = carteAvecPivoter('scouts', [
+    { type: 'CHOIX', options: [[{ type: 'FORCE', valeur: 2 }], [{ type: 'VISION', valeur: 1 }]] },
+  ]);
+  const p = scenario([scouts]);
+
+  const { partie } = activerPivoter(p, 'scouts#x', [{ branche: 0 }], creerRng(1));
+
+  assert.equal(partie.champDeBataille[0]?.jetonBonus, 2);
+});
+
 test('propage les reconstitutions du Château depuis les effets exécutés', () => {
   const remplissage = Array.from({ length: 2 }, (_, i) => carte(`c${i}`));
   const p = {

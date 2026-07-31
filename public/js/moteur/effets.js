@@ -21,11 +21,16 @@
 // Détruire une carte (DETRUIRE_JEU/DETRUIRE_HOPITAL) déclenche son éventuelle
 // action TESTAMENT, exécutée récursivement via executerEffets.
 //
+// CHOIX exécute la branche choisie (`choix.branche`, un index dans
+// `effet.options`) en rappelant executerEffets récursivement sur ses effets,
+// avec ses propres sous-choix (`choix.choixBranche`) — et en propageant
+// carteActiveeId/carteActiveeTypeId, pour qu'un FORCE ou SPECIAL imbriqué
+// dans une branche (cas réel : Scouts) fonctionne exactement comme au
+// premier niveau.
+//
 // Pas encore gérés (lèvent une erreur explicite plutôt que de ne rien faire) :
 // - JETON_ENNEMI, ENNEMI_AVANCE : contexte ennemi/orchestration — gérés par
 //   REVELATION directement (voir revelation.js), pas par cet exécuteur.
-// - CHOIX : la sélection de branche + ses sous-choix demande sa propre
-//   conception (imbrication), pas dans ce lot.
 
 import { piocher } from './pioche.js';
 import { ajusterRessources, ajouterJetonBonusAllie } from './partie.js';
@@ -42,10 +47,14 @@ import { gestionnairesSpecial } from './special.js';
  * instanceId par carte visée), `indexPiste` pour VISION (un index de case par
  * vision générée), `choixTestament` pour DETRUIRE_JEU/DETRUIRE_HOPITAL — le
  * choix de l'action TESTAMENT que la carte détruite déclenche, le cas échéant.
+ * `branche`/`choixBranche` pour CHOIX : l'index choisi dans `effet.options`,
+ * et les choix pour les effets de cette branche.
  * @typedef {object} Choix
  * @property {readonly string[]} [cibles]
  * @property {readonly number[]} [indexPiste]
  * @property {readonly (Choix | undefined)[]} [choixTestament]
+ * @property {number} [branche]
+ * @property {readonly (Choix | undefined)[]} [choixBranche]
  */
 
 /**
@@ -217,6 +226,18 @@ export function executerEffets(partie, effets, choix, rng, carteActiveeId, carte
         const gestionnaire = carteActiveeTypeId ? gestionnairesSpecial[carteActiveeTypeId] : undefined;
         if (!gestionnaire) throw new Error(`SPECIAL non encore exécutable : ${effet.texte}`);
         etat = gestionnaire(etat, c, rng, carteActiveeId);
+        break;
+      }
+
+      case 'CHOIX': {
+        const branche = c?.branche;
+        const options = effet.options ?? [];
+        if (branche === undefined || !options[branche]) {
+          throw new Error('CHOIX : branche invalide');
+        }
+        const r = executerEffets(etat, options[branche], c?.choixBranche ?? [], rng, carteActiveeId, carteActiveeTypeId);
+        etat = r.partie;
+        reconstitutions += r.reconstitutions;
         break;
       }
 

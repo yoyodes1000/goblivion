@@ -142,10 +142,10 @@ test('VISION : refuse si le nombre de cases visées ne correspond pas à `valeur
   );
 });
 
-test('un effet pas encore géré (ex. CHOIX) lève une erreur explicite plutôt que de ne rien faire', () => {
+test('un effet pas encore géré (ex. JETON_ENNEMI, hors contexte REVELATION) lève une erreur explicite', () => {
   const p = scenario([]);
   assert.throws(
-    () => executerEffets(p, [{ type: 'CHOIX', options: [] }], [], creerRng(1)),
+    () => executerEffets(p, [{ type: 'JETON_ENNEMI', valeur: 2 }], [], creerRng(1)),
     /non encore exécutable/,
   );
 });
@@ -218,6 +218,57 @@ test('TESTAMENT du Hochet royal réactive le pouvoir Roi/Reine', () => {
   const p = { ...scenario([hochetRoyal]), pouvoirUtilise: true };
   const { partie } = executerEffets(p, [{ type: 'DETRUIRE_JEU' }], [{ cibles: ['hochet#x'] }], creerRng(1));
   assert.equal(partie.pouvoirUtilise, false);
+});
+
+test('CHOIX : exécute la branche désignée (0)', () => {
+  const p = scenario([]);
+  const effet = /** @type {import('../public/js/moteur/cartes/types.js').Effet} */ ({
+    type: 'CHOIX',
+    options: [[{ type: 'PIOCHER', valeur: 1 }], [{ type: 'VISION', valeur: 1 }]],
+  });
+  const { partie } = executerEffets(p, [effet], [{ branche: 0 }], creerRng(1));
+  assert.equal(partie.champDeBataille.length, 1);
+});
+
+test('CHOIX : exécute la branche désignée (1), avec ses propres sous-choix', () => {
+  const p = avancerEnnemis(scenario([]));
+  const effet = /** @type {import('../public/js/moteur/cartes/types.js').Effet} */ ({
+    type: 'CHOIX',
+    options: [[{ type: 'PIOCHER', valeur: 1 }], [{ type: 'VISION', valeur: 1 }]],
+  });
+  const { partie } = executerEffets(p, [effet], [{ branche: 1, choixBranche: [{ indexPiste: [0] }] }], creerRng(1));
+  assert.equal(partie.pisteEnnemi[0]?.revele, true);
+});
+
+test('CHOIX : lève une erreur sur une branche invalide', () => {
+  const p = scenario([]);
+  const effet = /** @type {import('../public/js/moteur/cartes/types.js').Effet} */ ({
+    type: 'CHOIX',
+    options: [[{ type: 'PIOCHER', valeur: 1 }]],
+  });
+  assert.throws(() => executerEffets(p, [effet], [{ branche: 5 }], creerRng(1)), /branche invalide/);
+  assert.throws(() => executerEffets(p, [effet], [{}], creerRng(1)), /branche invalide/);
+});
+
+test('CHOIX : une branche contenant FORCE fonctionne (forme de Scouts), carteActiveeId propagé', () => {
+  const p = scenario([carte('scouts')]);
+  const effet = /** @type {import('../public/js/moteur/cartes/types.js').Effet} */ ({
+    type: 'CHOIX',
+    options: [[{ type: 'FORCE', valeur: 2 }], [{ type: 'VISION', valeur: 1 }]],
+  });
+  const { partie } = executerEffets(p, [effet], [{ branche: 0 }], creerRng(1), 'scouts#x');
+  assert.equal(partie.champDeBataille[0]?.jetonBonus, 2);
+});
+
+test('CHOIX : propage les reconstitutions du Château depuis la branche choisie', () => {
+  const remplissage = Array.from({ length: 3 }, (_, i) => carte(`c${i}`));
+  const p = { ...scenario([]), chateau: [], hopital: remplissage };
+  const effet = /** @type {import('../public/js/moteur/cartes/types.js').Effet} */ ({
+    type: 'CHOIX',
+    options: [[{ type: 'PIOCHER', valeur: 2 }]],
+  });
+  const { reconstitutions } = executerEffets(p, [effet], [{ branche: 0 }], creerRng(1));
+  assert.equal(reconstitutions, 1);
 });
 
 test('les reconstitutions du Château se propagent depuis PIOCHER', () => {
