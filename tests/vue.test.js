@@ -187,3 +187,39 @@ test('la force ennemie aux Portes est la somme de leurs forces', () => {
   const p = scenario({ portes: [ennemi('a', true, 1), ennemi('b', true)] });
   assert.equal(construireVue(p).forceEnnemie, 9); // (4+1) + 4
 });
+
+// ── Ce qui est jouable ──────────────────────────────────────────────────────
+
+/** @param {string} id @returns {import('../public/js/moteur/partie.js').InstanceAlliee} */
+function avecPivoter(id) {
+  return {
+    instanceId: `${id}#a`,
+    type: /** @type {any} */ ({
+      id, nom: id, symbole: 'HUMAIN', force: 1,
+      actions: [{ declencheur: 'PIVOTER', effets: [{ type: 'OR', valeur: 1 }], texte: 'Pivoter : +1 or' }],
+    }),
+  };
+}
+
+test('une carte en jeu avec une action Pivoter non encore jouée est activable', () => {
+  const vue = construireVue(scenario({ champDeBataille: [avecPivoter('boulanger')] }));
+  assert.equal(vue.champDeBataille.cartes[0]?.activable, true);
+});
+
+test('une carte déjà activée ne l’est plus', () => {
+  const p = scenario({ champDeBataille: [avecPivoter('boulanger')], cartesActivees: ['boulanger#a'] });
+  assert.equal(construireVue(p).champDeBataille.cartes[0]?.activable, false);
+});
+
+test('une carte sans action Pivoter ne l’est jamais', () => {
+  const vue = construireVue(scenario({ champDeBataille: [allie('mendiant', -1)] }));
+  assert.equal(vue.champDeBataille.cartes[0]?.activable, false);
+});
+
+test('hors du Champ de bataille, rien n’est activable — Hôpital comme Garde du corps', () => {
+  const p = scenario({ hopital: [avecPivoter('boulanger')], gardeDuCorps: avecPivoter('archer') });
+  const vue = construireVue(p);
+
+  assert.equal(vue.hopital.cartes[0]?.activable, false);
+  assert.equal(vue.gardeDuCorps?.activable, false);
+});
