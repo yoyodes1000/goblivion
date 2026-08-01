@@ -239,6 +239,16 @@ test('Gobelin pestilant (SPECIAL) : lève jetonsIgnores sans toucher aux jetons 
   assert.equal(partie.champDeBataille[0]?.jetonBonus, 2); // le jeton est ignoré, pas retiré
 });
 
+test('Troll saboteur (SPECIAL) : lève orBloque', () => {
+  const p = scenario([
+    ennemi('troll-saboteur', [{ type: 'SPECIAL', texte: 'vous ne gagnez aucun or pour ce combat' }]),
+  ]);
+
+  const { partie } = revelerAuxPortes(p, 0, [], creerRng(1));
+
+  assert.equal(partie.orBloque, true);
+});
+
 test('index hors bornes lève une erreur', () => {
   const p = scenario([]);
   assert.throws(() => revelerAuxPortes(p, 0, [], creerRng(1)), /Aucun ennemi/);

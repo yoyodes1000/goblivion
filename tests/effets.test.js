@@ -50,6 +50,30 @@ test('OR : ajuste les ressources', () => {
   assert.equal(partie.ressources, p.ressources + 2);
 });
 
+test('OR : orBloque (Troll saboteur) annule le gain', () => {
+  const p = { ...scenario([]), orBloque: true };
+  const { partie } = executerEffets(p, [{ type: 'OR', valeur: 2 }], [], creerRng(1));
+  assert.equal(partie.ressources, p.ressources);
+});
+
+test('OR : orBloque laisse les pertes s’appliquer', () => {
+  const p = { ...scenario([]), orBloque: true };
+  const { partie } = executerEffets(p, [{ type: 'OR', valeur: -3 }], [], creerRng(1));
+  assert.equal(partie.ressources, p.ressources - 3);
+});
+
+test('OR : orBloque n’empêche pas les autres effets de l’action de se jouer', () => {
+  const p = { ...scenario([]), orBloque: true };
+  const { partie } = executerEffets(
+    p,
+    [{ type: 'OR', valeur: 1 }, { type: 'PIOCHER', valeur: 2 }],
+    [],
+    creerRng(1),
+  );
+  assert.equal(partie.ressources, p.ressources); // le gain est perdu
+  assert.equal(partie.champDeBataille.length, 2); // mais la pioche a bien lieu
+});
+
 test('plusieurs effets s’enchaînent dans l’ordre de la liste', () => {
   const p = scenario([]);
   const { partie } = executerEffets(

@@ -93,6 +93,7 @@ export function miseEnPlace(options, rng) {
     gardeDuCorpsEchange: false,
     cartesActivees: [],
     jetonsIgnores: false,
+    orBloque: false,
     jetonsBonusDepart: JETONS_DEPART[options.difficulte],
     chateau,
     hopital: [],

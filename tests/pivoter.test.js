@@ -179,6 +179,16 @@ function ennemi(id, jetonBonus) {
   };
 }
 
+test('orBloque (Troll saboteur) : la carte se pivote bien, mais son gain d’or est perdu', () => {
+  const boulanger = carteAvecPivoter('boulanger', [{ type: 'OR', valeur: 1 }]);
+  const p = { ...scenario([boulanger]), orBloque: true };
+
+  const { partie } = activerPivoter(p, 'boulanger#x', [], creerRng(1));
+
+  assert.equal(partie.ressources, p.ressources); // aucun or gagné
+  assert.ok(partie.cartesActivees.includes('boulanger#x')); // la carte est bien activée
+});
+
 test('Champion (SPECIAL) : détruit le jeton bonus de l’ennemi désigné aux Portes', () => {
   const champion = carteAvecPivoter('champion', [{ type: 'SPECIAL', texte: 'détruire un jeton bonus ennemi' }]);
   const p = { ...scenario([champion]), portes: [ennemi('gob', 2), ennemi('autre', 1)] };

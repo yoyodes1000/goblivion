@@ -46,6 +46,7 @@ import { phaseSuivante } from './phases.js';
  * @property {boolean} premierCombatGagne            Débloque l'entraînement 2 épées.
  * @property {boolean} gardeDuCorpsEchange           Garde du corps déjà échangé cette phase ?
  * @property {boolean} jetonsIgnores                 Jetons bonus alliés annulés pour ce combat (Gobelin pestilant).
+ * @property {boolean} orBloque                      Aucun gain d'or pour ce combat (Troll saboteur) ; les pertes s'appliquent.
  * @property {readonly string[]} cartesActivees      instanceId des cartes « pivotées » (activées) cette phase.
  * @property {number} jetonsBonusDepart              Jetons +2 en main (mode Facile).
  * @property {InstanceAlliee[]} chateau              Pioche, faces cachées (index 0 = dessus).
@@ -62,7 +63,7 @@ import { phaseSuivante } from './phases.js';
 /**
  * Fait avancer la partie d'une phase. Le numéro de tour s'incrémente au retour
  * sur « Entraînement » (nouveau tour). Les états valables « pour ce combat »
- * (`jetonsIgnores`) ou « cette phase » (`gardeDuCorpsEchange`,
+ * (`jetonsIgnores`, `orBloque`) ou « cette phase » (`gardeDuCorpsEchange`,
  * `cartesActivees`) retombent ici.
  * @param {Partie} partie
  * @returns {Partie}
@@ -77,6 +78,7 @@ export function avancerPhase(partie) {
     gardeDuCorpsEchange: false,
     cartesActivees: [],
     jetonsIgnores: false,
+    orBloque: false,
   });
 }
 

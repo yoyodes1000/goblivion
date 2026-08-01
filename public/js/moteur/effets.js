@@ -188,9 +188,16 @@ export function executerEffets(partie, effets, choix, rng, carteActiveeId, carte
         break;
       }
 
-      case 'OR':
-        etat = ajusterRessources(etat, effet.valeur ?? 0);
+      case 'OR': {
+        const valeur = effet.valeur ?? 0;
+        // Troll saboteur : aucun gain d'or pour ce combat. L'action se joue
+        // quand même (la carte est bien activée, ses autres effets tiennent),
+        // seul le gain est perdu ; les pertes, elles, restent dues.
+        if (!(etat.orBloque && valeur > 0)) {
+          etat = ajusterRessources(etat, valeur);
+        }
         break;
+      }
 
       case 'VISION': {
         const indexPiste = c?.indexPiste ?? [];

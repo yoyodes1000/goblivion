@@ -236,6 +236,17 @@ export const gestionnairesSpecial = {
   },
 
   /**
+   * Troll saboteur (REVELATION) : aucun gain d'or pour ce combat
+   * (`orBloque`, remis à false par `avancerPhase`). Les actions qui
+   * rapportent de l'or restent jouables — la carte est bien activée et ses
+   * autres effets s'appliquent — mais leur gain est perdu. Les pertes d'or
+   * continuent de s'appliquer normalement.
+   */
+  'troll-saboteur'(partie) {
+    return Object.freeze({ ...partie, orBloque: true });
+  },
+
+  /**
    * Horde Gobelin (REVELATION) : envoie un Paysan désigné à l'Hôpital.
    */
   'horde-gobelin'(partie, choix) {

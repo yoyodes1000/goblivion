@@ -92,3 +92,8 @@ test('avancerPhase réinitialise les jetons ignorés (Gobelin pestilant, « pour
   const p = { ...partieTest('NORMAL'), jetonsIgnores: true };
   assert.equal(avancerPhase(p).jetonsIgnores, false);
 });
+
+test('avancerPhase réinitialise le blocage de l’or (Troll saboteur, « pour ce combat »)', () => {
+  const p = { ...partieTest('NORMAL'), orBloque: true };
+  assert.equal(avancerPhase(p).orBloque, false);
+});
