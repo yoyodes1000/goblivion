@@ -78,7 +78,7 @@ function gainSurvivant(ennemi) {
  * @returns {{ partie: Partie, victoire: boolean }}
  */
 export function resoudreCombat(partie, ciblesDefaite = []) {
-  const forceJoueur = forceTotale(partie.champDeBataille, partie.jetonsIgnores);
+  const forceJoueur = forceTotale(partie.champDeBataille, { jetonsIgnores: partie.jetonsIgnores });
   const forceEnnemis = forceEnnemisPortes(partie);
 
   if (forceJoueur >= forceEnnemis) {
