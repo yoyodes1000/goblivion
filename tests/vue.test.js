@@ -68,7 +68,7 @@ test('aucun identifiant de carte du Château n’apparaît dans la vue entière'
 });
 
 test('un ennemi non révélé ne livre ni nom, ni force, ni niveau', () => {
-  const p = scenario({ pisteEnnemi: [ennemi('gob', false), null, null, null] });
+  const p = scenario({ pisteEnnemi: [ennemi('gob', false), null, null] });
   const [case1] = construireVue(p).pisteEnnemi;
 
   assert.equal(case1?.revele, false);
@@ -79,7 +79,7 @@ test('un ennemi non révélé ne livre ni nom, ni force, ni niveau', () => {
 });
 
 test('un ennemi non révélé montre quand même son jeton : c’est un pion posé sur la carte', () => {
-  const p = scenario({ pisteEnnemi: [ennemi('gob', false, 2), null, null, null] });
+  const p = scenario({ pisteEnnemi: [ennemi('gob', false, 2), null, null] });
   assert.equal(construireVue(p).pisteEnnemi[0]?.jetonBonus, 2);
 });
 

@@ -56,7 +56,7 @@ import { phaseSuivante } from './phases.js';
  * @property {InstanceAlliee | null} gardeDuCorps
  * @property {PileDore[]} marcheDore
  * @property {InstanceEnnemi[]} pileEnnemi           Pioche ennemie (index 0 = dessus).
- * @property {(EnnemiSurPiste | null)[]} pisteEnnemi Les 4 cases : index 0 = case 1 (pioche) → index 3 = case 4 (Portes).
+ * @property {(EnnemiSurPiste | null)[]} pisteEnnemi Les 3 cases : index 0 = case 1 (pioche) → index 2 = dernière avant les Portes.
  * @property {EnnemiSurPiste[]} portes               Ennemis aux Portes du château (max 3, en combat).
  * @property {InstanceBoss[]} boss                   Boss à affronter, faces cachées (index 0 = le prochain).
  * @property {InstanceBoss[]} pileBoss               Boss non tirés à la mise en place, réserve où puise Bébé troll.

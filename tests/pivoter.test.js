@@ -202,7 +202,7 @@ test('Champion (SPECIAL) : détruit le jeton bonus de l’ennemi désigné aux P
 
 test('Champion (SPECIAL) : atteint aussi un ennemi resté sur la piste', () => {
   const champion = carteAvecPivoter('champion', [{ type: 'SPECIAL', texte: 'détruire un jeton bonus ennemi' }]);
-  const p = { ...scenario([champion]), pisteEnnemi: [null, ennemi('gob', 2), null, null] };
+  const p = { ...scenario([champion]), pisteEnnemi: [null, ennemi('gob', 2), null] };
 
   const { partie } = activerPivoter(p, 'champion#x', [{ cibles: ['gob#e'] }], creerRng(1));
 

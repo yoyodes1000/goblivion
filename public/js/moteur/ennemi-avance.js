@@ -1,7 +1,8 @@
 // Moteur — phase « L'Ennemi Avance » (règles p.10-11). Couche PURE.
-// La piste a 4 cases : index 0 = case 1 (côté pioche, où apparaissent les
-// ennemis) → index 3 = case 4 (côté Portes). Les Portes accueillent au plus 3
-// ennemis (la zone de combat).
+// La piste a 3 cases : index 0 = case 1 (côté pioche, où apparaissent les
+// ennemis) → index 2 = dernière case avant les Portes. Les Portes sont une
+// zone à part, pas une case de la piste, et accueillent au plus 3 ennemis
+// (la zone de combat).
 
 /** @typedef {import('./partie.js').Partie} Partie */
 /** @typedef {import('./partie.js').EnnemiSurPiste} EnnemiSurPiste */
@@ -9,7 +10,7 @@
 
 /**
  * Une avancée de l'ennemi :
- * 1. l'ennemi de la case 4 entre aux Portes ; si elles sont pleines (3), il est
+ * 1. l'ennemi de la case 3 entre aux Portes ; si elles sont pleines (3), il est
  *    détruit (« l'ennemi n'arrête jamais ») ;
  * 2. tous les ennemis glissent d'une case vers les Portes ;
  * 3. une nouvelle carte de la pile Ennemi (si non vide) comble la case 1.
@@ -22,8 +23,8 @@ export function avancerEnnemis(partie) {
   const portes = [...partie.portes];
   const pileEnnemi = [...partie.pileEnnemi];
 
-  // 1. La case 4 entre aux Portes, ou est détruite si elles sont pleines.
-  const frontal = piste[3] ?? null;
+  // 1. La dernière case entre aux Portes, ou est détruite si elles sont pleines.
+  const frontal = piste[2] ?? null;
   if (frontal && portes.length < 3) {
     portes.push(frontal);
   }
@@ -36,8 +37,8 @@ export function avancerEnnemis(partie) {
     case1 = { instance, revele: false, jetonBonus: 0 };
   }
 
-  // 2. Glissement d'une case vers les Portes (index 0 → 1 → 2 → 3).
-  const pisteEnnemi = [case1, piste[0] ?? null, piste[1] ?? null, piste[2] ?? null];
+  // 2. Glissement d'une case vers les Portes (index 0 → 1 → 2).
+  const pisteEnnemi = [case1, piste[0] ?? null, piste[1] ?? null];
 
   return Object.freeze({ ...partie, pisteEnnemi, portes, pileEnnemi });
 }

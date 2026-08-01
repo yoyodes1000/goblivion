@@ -291,7 +291,7 @@ test('resoudreRevelation : un ennemi sans avancée, pioché et révélé une foi
 test('resoudreRevelation : « l’ennemi avance » fait avancer la piste et reprend sans redéclencher l’action', () => {
   const commandant = ennemi('commandant', [{ type: 'JETON_ENNEMI', valeur: 2 }, { type: 'ENNEMI_AVANCE' }]);
   const recrue = ennemi('recrue', [{ type: 'OR', valeur: -1 }]);
-  const p = scenario([commandant], { pisteEnnemi: [null, null, null, recrue], pileEnnemi: [] });
+  const p = scenario([commandant], { pisteEnnemi: [null, null, recrue], pileEnnemi: [] });
 
   const { partie } = resoudreRevelation(p, creerRng(1));
 
