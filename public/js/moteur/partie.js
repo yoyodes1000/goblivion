@@ -14,6 +14,7 @@ import { phaseSuivante } from './phases.js';
  * @property {string} instanceId
  * @property {CarteAlliee} type
  * @property {number} [jetonBonus]   Jeton bonus de force posé par un effet FORCE (absent = 0).
+ * @property {CarteAlliee} [typeOrigine]  Type imprimé mis de côté pendant une substitution (voir `substituerType`).
  */
 /** @typedef {{ instanceId: string, type: CarteEnnemi }} InstanceEnnemi */
 /** @typedef {{ instanceId: string, type: CarteBoss }} InstanceBoss */
@@ -95,6 +96,50 @@ export function ajusterRessources(partie, delta) {
 }
 
 /**
+ * Substitue le type d'une carte du Champ de bataille : elle prend toutes les
+ * caractéristiques d'une autre (force, symbole, actions) le temps de son séjour
+ * en jeu. Deux cartes en vivent — le Joker, qui copie un Paysan à son arrivée,
+ * et le Héros du village, qui devient un Soldat.
+ *
+ * Le type imprimé est mis de côté dans `typeOrigine` : la carte le récupère en
+ * rentrant à l'Hôpital (voir `rendreTypeImprime`). Rien d'autre ne bouge —
+ * l'`instanceId` et le jeton bonus survivent, c'est toujours la même carte.
+ * Une substitution déjà en cours conserve le type imprimé d'origine, jamais
+ * l'intermédiaire.
+ * @param {Partie} partie
+ * @param {string} instanceId
+ * @param {CarteAlliee} type
+ * @returns {Partie}
+ */
+export function substituerType(partie, instanceId, type) {
+  if (!partie.champDeBataille.some((c) => c.instanceId === instanceId)) {
+    throw new Error(`Carte absente du Champ de bataille (${instanceId})`);
+  }
+
+  const champDeBataille = partie.champDeBataille.map((c) =>
+    c.instanceId === instanceId ? { ...c, type, typeOrigine: c.typeOrigine ?? c.type } : c,
+  );
+  return Object.freeze({ ...partie, champDeBataille });
+}
+
+/**
+ * Rend son type imprimé à une carte qui rentre à l'Hôpital, annulant une
+ * éventuelle substitution. Sans substitution en cours, la carte est renvoyée
+ * telle quelle.
+ *
+ * À appliquer sur TOUT chemin vers l'Hôpital : un Joker qui y retourne
+ * redevient un Joker, un Héros du village cesse d'être un Soldat. La
+ * destruction, elle, retire la carte du jeu et n'a rien à restaurer.
+ * @param {InstanceAlliee} carte
+ * @returns {InstanceAlliee}
+ */
+export function rendreTypeImprime(carte) {
+  if (!carte.typeOrigine) return carte;
+  const { typeOrigine, ...reste } = carte;
+  return { ...reste, type: typeOrigine };
+}
+
+/**
  * Fin de phase : les cartes en jeu rejoignent l'Hôpital et le Champ de bataille
  * est vidé. Le Garde du corps, lui, ne quitte pas son emplacement.
  * @param {Partie} partie
@@ -103,7 +148,7 @@ export function ajusterRessources(partie, delta) {
 export function viderChampDeBataille(partie) {
   return Object.freeze({
     ...partie,
-    hopital: [...partie.hopital, ...partie.champDeBataille],
+    hopital: [...partie.hopital, ...partie.champDeBataille.map(rendreTypeImprime)],
     champDeBataille: [],
   });
 }

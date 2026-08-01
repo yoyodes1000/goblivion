@@ -43,7 +43,7 @@
 //   REVELATION directement (voir revelation.js), pas par cet exécuteur.
 
 import { piocher } from './pioche.js';
-import { ajusterRessources, ajouterJetonBonusAllie } from './partie.js';
+import { ajusterRessources, ajouterJetonBonusAllie, rendreTypeImprime } from './partie.js';
 import { revelerSurPiste } from './ennemi-avance.js';
 import { gestionnairesSpecial } from './special.js';
 
@@ -83,7 +83,7 @@ function defausser(partie, cibles) {
     etat = Object.freeze({
       ...etat,
       champDeBataille: etat.champDeBataille.filter((c) => c.instanceId !== instanceId),
-      hopital: [...etat.hopital, carte],
+      hopital: [...etat.hopital, rendreTypeImprime(carte)],
     });
   }
   return etat;

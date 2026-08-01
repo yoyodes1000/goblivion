@@ -69,3 +69,23 @@ test('entraînement : ressources insuffisantes pour la cible → refusé', () =>
     /insuffisantes/,
   );
 });
+
+// Chevalier (2 épées) : piocher 4, cible 8, échange HUMAIN — et son action
+// ENTRAINEMENT, seule du jeu, qui rapporte une carte Épée en plus.
+
+test('Chevalier : l’entraîner ajoute aussi une carte Épée à l’Hôpital', () => {
+  const chateau = [carte('a', 4), carte('b', 4), carte('c', 0), carte('d', 0)];
+  const p = scenario(chateau, 18, true);
+  const r = entrainer(p, { doreId: 'chevalier', sacrifieInstanceId: 'a#x' }, creerRng(1));
+
+  assert.ok(r.hopital.some((c) => c.type.id === 'chevalier'), 'la Doré entraînée');
+  assert.ok(r.hopital.some((c) => c.type.id === 'epee'), 'l’Épée offerte par son action');
+  assert.equal(r.ressources, 18); // force 8 = cible 8, rien à payer
+  assert.equal(r.marcheDore.find((m) => m.typeId === 'chevalier')?.restant, 1);
+});
+
+test('une Doré sans action ENTRAINEMENT ne rapporte rien de plus', () => {
+  const p = scenario([carte('a', 1), carte('b', 1), carte('c', 0), carte('d', 0)]);
+  const r = entrainer(p, { doreId: 'batisseur', sacrifieInstanceId: 'a#x' }, creerRng(1));
+  assert.equal(r.hopital.some((c) => c.type.id === 'epee'), false);
+});

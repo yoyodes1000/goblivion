@@ -15,7 +15,12 @@
 // combat par `combat-boss.js`.
 
 import { paysansBase, dores } from './cartes/index.js';
-import { ajouterJetonBonusAllie, retirerJetonBonusEnnemi } from './partie.js';
+import {
+  ajouterJetonBonusAllie,
+  retirerJetonBonusEnnemi,
+  substituerType,
+  rendreTypeImprime,
+} from './partie.js';
 import { forceCarte } from './force.js';
 import { melanger } from './aleatoire.js';
 
@@ -106,7 +111,7 @@ function envoyerHopital(partie, carte) {
   return Object.freeze({
     ...partie,
     champDeBataille: partie.champDeBataille.filter((c) => c.instanceId !== carte.instanceId),
-    hopital: [...partie.hopital, carte],
+    hopital: [...partie.hopital, rendreTypeImprime(carte)],
   });
 }
 
@@ -203,6 +208,42 @@ export const gestionnairesSpecial = {
     if (!carteActiveeId) throw new Error('Protecteur mécanique : aucune carte activée dans ce contexte');
     const bonus = partie.hopital.filter((c) => c.type.symbole === 'OBJET').length;
     return ajouterJetonBonusAllie(partie, carteActiveeId, bonus);
+  },
+
+  /**
+   * Héros du village (PIVOTER) : devient un Soldat le temps de son séjour en
+   * jeu. Il prend le type Soldat *en entier* — donc son barème de force
+   * variable, sa présence au décompte des Soldats et ses capacités —, ce qui
+   * fait disparaître sa force imprimée de 2. Elle lui revient quand il rentre
+   * à l'Hôpital (voir `substituerType`).
+   *
+   * Rien à ajouter dans `force.js` : la carte EST un Soldat, le barème existant
+   * la reconnaît comme telle.
+   */
+  'heros-du-village'(partie, choix, rng, carteActiveeId) {
+    if (!carteActiveeId) throw new Error('Héros du village : aucune carte activée dans ce contexte');
+
+    const soldat = dores.find((d) => d.id === 'soldat');
+    if (!soldat) throw new Error('Héros du village : type Soldat introuvable');
+
+    return substituerType(partie, carteActiveeId, soldat);
+  },
+
+  /**
+   * Chevalier (ENTRAINEMENT) : l'entraîner rapporte en plus une carte Épée
+   * (Bleu, symbole OBJET), ajoutée directement à l'Hôpital — sans avoir à
+   * sacrifier de Paysan pour elle (FAQ p.18).
+   *
+   * L'Épée est CRÉÉE, pas prélevée : le moteur ne modélise aucune réserve de
+   * cartes Bleu (la mise en place en tire 20 sur 40 et ignore le reste), donc
+   * pas de plafond aux 3 exemplaires du jeu physique. Dette assumée.
+   */
+  chevalier(partie) {
+    const epee = paysansBase.find((c) => c.id === 'epee');
+    if (!epee) throw new Error('Chevalier : carte Épée introuvable');
+
+    const instance = { instanceId: `epee#chevalier-t${partie.tour}`, type: epee };
+    return Object.freeze({ ...partie, hopital: [...partie.hopital, instance] });
   },
 
   /**
@@ -388,6 +429,47 @@ export const gestionnairesSpecial = {
     return outils.executerEffets(partie, action.effets, choix?.choixCopie ?? [], rng, carteActiveeId, carte.type.id);
   },
 };
+
+/**
+ * Joker (PASSIF) : à son arrivée en jeu, il prend toutes les caractéristiques
+ * d'un Paysan en jeu, Bleu ou Doré — force ET capacités. Il redevient Joker en
+ * rentrant à l'Hôpital (voir `substituerType`).
+ *
+ * Hors du registre ci-dessus, et c'est délibéré : un PASSIF ne s'exécute pas,
+ * et « l'arrivée en jeu » n'a aucun point de passage unique dans le moteur (on
+ * arrive par la pioche, par Prêtre/Forgeron/Aimant, par Yolo, par Brod).
+ * Instrumenter les cinq pour un seul cas coûterait plus que ça ne rapporte :
+ * l'appelant déclenche donc la copie au bon moment — d'autant que le Paysan
+ * copié est de toute façon un choix du joueur.
+ *
+ * « Bleu ou Doré » écarte les cartes gagnées sur les ennemis, dont le Joker
+ * lui-même : comme pour Casque à cornes, l'appartenance à ces familles se lit
+ * dans les données, aucun champ de la carte ne la porte. Recopier est donc
+ * impossible sans garde supplémentaire — après substitution, le `type.id` du
+ * Joker n'est plus `joker`.
+ * @param {Partie} partie
+ * @param {string} jokerInstanceId
+ * @param {string} cibleInstanceId   Le Paysan en jeu dont il prend la place.
+ * @returns {Partie}
+ */
+export function copierAvecJoker(partie, jokerInstanceId, cibleInstanceId) {
+  const joker = partie.champDeBataille.find((c) => c.instanceId === jokerInstanceId);
+  if (!joker) throw new Error(`Joker : carte absente du Champ de bataille (${jokerInstanceId})`);
+  if (joker.type.id !== 'joker') throw new Error('Joker : cette carte n’est pas un Joker');
+
+  const cible = partie.champDeBataille.find((c) => c.instanceId === cibleInstanceId);
+  if (!cible) throw new Error(`Joker : cible absente du Champ de bataille (${cibleInstanceId})`);
+  if (cible.type.symbole !== 'HUMAIN') {
+    throw new Error('Joker : la cible doit être un Paysan (symbole HUMAIN)');
+  }
+
+  const familles = new Set([...paysansBase, ...dores].map((c) => c.id));
+  if (!familles.has(cible.type.id)) {
+    throw new Error('Joker : la cible doit être une carte Bleu ou Doré');
+  }
+
+  return substituerType(partie, jokerInstanceId, cible.type);
+}
 
 /** @type {Record<string, GestionnairePouvoir>} */
 export const pouvoirsSpecial = {
