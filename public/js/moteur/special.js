@@ -9,9 +9,18 @@
 // mélanger les deux espaces de noms dans un seul registre serait fragile
 // pour un gain nul. Appelé directement par `pouvoir.js` (pas par
 // `executerEffets`, qui ne connaît que `gestionnairesSpecial`).
+//
+// Troisième registre, `passifsBoss` : un PASSIF n'est jamais « exécuté », donc
+// n'a pas de gestionnaire — c'est de la donnée déclarative, lue au moment du
+// combat par `combat-boss.js`.
 
 import { paysansBase, dores } from './cartes/index.js';
-import { ajouterJetonBonusAllie, retirerJetonBonusEnnemi } from './partie.js';
+import {
+  ajouterJetonBonusAllie,
+  retirerJetonBonusEnnemi,
+  substituerType,
+  rendreTypeImprime,
+} from './partie.js';
 import { forceCarte } from './force.js';
 import { melanger } from './aleatoire.js';
 
@@ -102,19 +111,53 @@ function envoyerHopital(partie, carte) {
   return Object.freeze({
     ...partie,
     champDeBataille: partie.champDeBataille.filter((c) => c.instanceId !== carte.instanceId),
-    hopital: [...partie.hopital, carte],
+    hopital: [...partie.hopital, rendreTypeImprime(carte)],
   });
+}
+
+/**
+ * Détruit la prochaine carte du Château. Une carte jamais piochée n'a pas de
+ * TESTAMENT à déclencher. Partagée par Trollolole et le Boss Dragon bleu,
+ * dont le texte est identique.
+ * @type {GestionnaireSpecial}
+ */
+function detruireProchaineCarteChateau(partie) {
+  return Object.freeze({ ...partie, chateau: partie.chateau.slice(1) });
+}
+
+/**
+ * Envoie à l'Hôpital le Paysan (HUMAIN) le plus fort du Champ de bataille.
+ * Partagée par Gobelin vachelier et le Boss Dragon serpent, dont le texte est
+ * identique (FAQ p.18).
+ *
+ * Comme toute cible d'effet, désignée par `choix.cibles` — le moteur ne
+ * choisit jamais à la place du joueur, l'UI la fournira au clic ; d'autant
+ * qu'en cas d'égalité de force, c'est explicitement au joueur de trancher
+ * (FAQ p.18). La cible est ici en plus validée contre la force réelle (via
+ * `forceCarte`, qui inclut le jeton bonus).
+ * @param {string} nomCarte   Pour les messages d'erreur.
+ * @returns {GestionnaireSpecial}
+ */
+function envoyerPaysanLePlusFortHopital(nomCarte) {
+  return (partie, choix) => {
+    const [cible, ...reste] = choix?.cibles ?? [];
+    if (!cible || reste.length > 0) throw new Error(`${nomCarte} : une seule cible attendue`);
+    const carte = trouverPaysanCible(partie, cible, nomCarte);
+
+    const paysans = partie.champDeBataille.filter((c) => c.type.symbole === 'HUMAIN');
+    const forceMax = Math.max(...paysans.map((c) => forceCarte(c, partie.champDeBataille)));
+    if (forceCarte(carte, partie.champDeBataille) !== forceMax) {
+      throw new Error(`${nomCarte} : la cible doit être le Paysan le plus fort`);
+    }
+
+    return envoyerHopital(partie, carte);
+  };
 }
 
 /** @type {Record<string, GestionnaireSpecial>} */
 export const gestionnairesSpecial = {
-  /**
-   * Trollolole (REVELATION) : détruit la prochaine carte du Château. Une
-   * carte jamais piochée n'a pas de TESTAMENT à déclencher.
-   */
-  trollolole(partie) {
-    return Object.freeze({ ...partie, chateau: partie.chateau.slice(1) });
-  },
+  trollolole: detruireProchaineCarteChateau,
+  'dragon-bleu': detruireProchaineCarteChateau,
 
   /**
    * Nain (PIVOTER) : chaque Objet en jeu gagne un jeton +1 force. Application
@@ -165,6 +208,42 @@ export const gestionnairesSpecial = {
     if (!carteActiveeId) throw new Error('Protecteur mécanique : aucune carte activée dans ce contexte');
     const bonus = partie.hopital.filter((c) => c.type.symbole === 'OBJET').length;
     return ajouterJetonBonusAllie(partie, carteActiveeId, bonus);
+  },
+
+  /**
+   * Héros du village (PIVOTER) : devient un Soldat le temps de son séjour en
+   * jeu. Il prend le type Soldat *en entier* — donc son barème de force
+   * variable, sa présence au décompte des Soldats et ses capacités —, ce qui
+   * fait disparaître sa force imprimée de 2. Elle lui revient quand il rentre
+   * à l'Hôpital (voir `substituerType`).
+   *
+   * Rien à ajouter dans `force.js` : la carte EST un Soldat, le barème existant
+   * la reconnaît comme telle.
+   */
+  'heros-du-village'(partie, choix, rng, carteActiveeId) {
+    if (!carteActiveeId) throw new Error('Héros du village : aucune carte activée dans ce contexte');
+
+    const soldat = dores.find((d) => d.id === 'soldat');
+    if (!soldat) throw new Error('Héros du village : type Soldat introuvable');
+
+    return substituerType(partie, carteActiveeId, soldat);
+  },
+
+  /**
+   * Chevalier (ENTRAINEMENT) : l'entraîner rapporte en plus une carte Épée
+   * (Bleu, symbole OBJET), ajoutée directement à l'Hôpital — sans avoir à
+   * sacrifier de Paysan pour elle (FAQ p.18).
+   *
+   * L'Épée est CRÉÉE, pas prélevée : le moteur ne modélise aucune réserve de
+   * cartes Bleu (la mise en place en tire 20 sur 40 et ignore le reste), donc
+   * pas de plafond aux 3 exemplaires du jeu physique. Dette assumée.
+   */
+  chevalier(partie) {
+    const epee = paysansBase.find((c) => c.id === 'epee');
+    if (!epee) throw new Error('Chevalier : carte Épée introuvable');
+
+    const instance = { instanceId: `epee#chevalier-t${partie.tour}`, type: epee };
+    return Object.freeze({ ...partie, hopital: [...partie.hopital, instance] });
   },
 
   /**
@@ -274,27 +353,8 @@ export const gestionnairesSpecial = {
     return envoyerHopital(partie, trouverPaysanCible(partie, cible, 'Horde Gobelin'));
   },
 
-  /**
-   * Gobelin vachelier (REVELATION) : envoie le Paysan le plus fort du Champ
-   * de bataille à l'Hôpital. Comme toute cible d'effet, désignée par
-   * `choix.cibles` — le moteur ne choisit jamais à la place du joueur, même
-   * quand « le plus fort » a un unique gagnant, l'UI la fournira au clic ;
-   * ici en plus validée contre la force réelle (via `forceCarte`, qui inclut
-   * le jeton bonus).
-   */
-  'gobelin-vachelier'(partie, choix) {
-    const [cible, ...reste] = choix?.cibles ?? [];
-    if (!cible || reste.length > 0) throw new Error('Gobelin vachelier : une seule cible attendue');
-    const carte = trouverPaysanCible(partie, cible, 'Gobelin vachelier');
-
-    const paysans = partie.champDeBataille.filter((c) => c.type.symbole === 'HUMAIN');
-    const forceMax = Math.max(...paysans.map((c) => forceCarte(c, partie.champDeBataille)));
-    if (forceCarte(carte, partie.champDeBataille) !== forceMax) {
-      throw new Error('Gobelin vachelier : la cible doit être le Paysan le plus fort');
-    }
-
-    return envoyerHopital(partie, carte);
-  },
+  'gobelin-vachelier': envoyerPaysanLePlusFortHopital('Gobelin vachelier'),
+  'dragon-serpent': envoyerPaysanLePlusFortHopital('Dragon serpent'),
 
   /**
    * Sorcière troll (REVELATION) : détruit le Paysan (HUMAIN) désigné du Champ
@@ -316,6 +376,29 @@ export const gestionnairesSpecial = {
     const [cible, ...reste] = choix?.cibles ?? [];
     if (!cible || reste.length > 0) throw new Error('Booba Brise-Fer : une seule cible attendue');
     trouverObjetCible(partie, cible, 'Booba Brise-Fer');
+    return outils.detruireEnJeu(partie, cible, choix?.choixTestament ?? [], rng);
+  },
+
+  /**
+   * Démon (REVELATION, Boss) : détruit une carte de force 1 ou plus du Champ
+   * de bataille — même mécanisme que Sorcière troll et Booba Brise-Fer, mais
+   * filtré sur la force plutôt que sur le symbole : toute carte assez forte
+   * fait l'affaire, Paysan comme Objet.
+   *
+   * La force est celle du combat en cours, jeton bonus compris. Elle est en
+   * revanche évaluée SANS les modificateurs du Boss : le Démon n'en a aucun,
+   * et le calcul de force d'un autre Boss n'a pas cours pendant le sien.
+   */
+  demon(partie, choix, rng, carteActiveeId, outils) {
+    const [cible, ...reste] = choix?.cibles ?? [];
+    if (!cible || reste.length > 0) throw new Error('Démon : une seule cible attendue');
+
+    const carte = partie.champDeBataille.find((c) => c.instanceId === cible);
+    if (!carte) throw new Error(`Démon : carte absente du Champ de bataille (${cible})`);
+    if (forceCarte(carte, partie.champDeBataille) < 1) {
+      throw new Error('Démon : la cible doit avoir une force de 1 ou plus');
+    }
+
     return outils.detruireEnJeu(partie, cible, choix?.choixTestament ?? [], rng);
   },
 
@@ -346,6 +429,47 @@ export const gestionnairesSpecial = {
     return outils.executerEffets(partie, action.effets, choix?.choixCopie ?? [], rng, carteActiveeId, carte.type.id);
   },
 };
+
+/**
+ * Joker (PASSIF) : à son arrivée en jeu, il prend toutes les caractéristiques
+ * d'un Paysan en jeu, Bleu ou Doré — force ET capacités. Il redevient Joker en
+ * rentrant à l'Hôpital (voir `substituerType`).
+ *
+ * Hors du registre ci-dessus, et c'est délibéré : un PASSIF ne s'exécute pas,
+ * et « l'arrivée en jeu » n'a aucun point de passage unique dans le moteur (on
+ * arrive par la pioche, par Prêtre/Forgeron/Aimant, par Yolo, par Brod).
+ * Instrumenter les cinq pour un seul cas coûterait plus que ça ne rapporte :
+ * l'appelant déclenche donc la copie au bon moment — d'autant que le Paysan
+ * copié est de toute façon un choix du joueur.
+ *
+ * « Bleu ou Doré » écarte les cartes gagnées sur les ennemis, dont le Joker
+ * lui-même : comme pour Casque à cornes, l'appartenance à ces familles se lit
+ * dans les données, aucun champ de la carte ne la porte. Recopier est donc
+ * impossible sans garde supplémentaire — après substitution, le `type.id` du
+ * Joker n'est plus `joker`.
+ * @param {Partie} partie
+ * @param {string} jokerInstanceId
+ * @param {string} cibleInstanceId   Le Paysan en jeu dont il prend la place.
+ * @returns {Partie}
+ */
+export function copierAvecJoker(partie, jokerInstanceId, cibleInstanceId) {
+  const joker = partie.champDeBataille.find((c) => c.instanceId === jokerInstanceId);
+  if (!joker) throw new Error(`Joker : carte absente du Champ de bataille (${jokerInstanceId})`);
+  if (joker.type.id !== 'joker') throw new Error('Joker : cette carte n’est pas un Joker');
+
+  const cible = partie.champDeBataille.find((c) => c.instanceId === cibleInstanceId);
+  if (!cible) throw new Error(`Joker : cible absente du Champ de bataille (${cibleInstanceId})`);
+  if (cible.type.symbole !== 'HUMAIN') {
+    throw new Error('Joker : la cible doit être un Paysan (symbole HUMAIN)');
+  }
+
+  const familles = new Set([...paysansBase, ...dores].map((c) => c.id));
+  if (!familles.has(cible.type.id)) {
+    throw new Error('Joker : la cible doit être une carte Bleu ou Doré');
+  }
+
+  return substituerType(partie, jokerInstanceId, cible.type);
+}
 
 /** @type {Record<string, GestionnairePouvoir>} */
 export const pouvoirsSpecial = {
@@ -433,4 +557,37 @@ export const pouvoirsSpecial = {
     const marcheDore = partie.marcheDore.map((m) => (m.typeId === doreId ? { ...m, restant: m.restant - 1 } : m));
     return Object.freeze({ ...partie, marcheDore, champDeBataille: [...partie.champDeBataille, instance] });
   },
+};
+
+/**
+ * L'effet PASSIF d'un Boss. Un PASSIF n'est jamais « exécuté » : c'est une
+ * contrainte permanente que le combat doit prendre en compte, pas une action
+ * qui se déclenche. D'où de la DONNÉE et non un gestionnaire — `combat-boss.js`
+ * la lit, personne ne l'appelle.
+ * @typedef {object} PassifBoss
+ * @property {import('./force.js').ModificateursForce} [force]  Altération du calcul de force.
+ * @property {number} [coutParActivation]  Ressources perdues par action Pivoter utilisée avant le combat.
+ */
+
+/**
+ * Les PASSIF des Boss, par `type.id` de Boss. Un Boss absent du registre n'a
+ * pas de PASSIF — l'absence est normale ici, contrairement à
+ * `gestionnairesSpecial` où elle signale un effet non encore implémenté.
+ * @type {Record<string, PassifBoss>}
+ */
+export const passifsBoss = {
+  /** Reine troll : « Ignore la Force des Objets. » */
+  'reine-troll': { force: { objetsIgnores: true } },
+
+  /** Trollette : « Ignore la Force des cartes de Force 4 et plus. » */
+  trollette: { force: { seuilForceIgnoree: 4 } },
+
+  /** Goblinosaurus : « Ignore les jetons +1 et +2. » */
+  goblinosaurus: { force: { jetonsIgnores: true } },
+
+  /** Les jumeaux : « La Force des cartes en double est réduite à la Force d'une seule d'entre elles. » */
+  'les-jumeaux': { force: { doublonsReduits: true } },
+
+  /** Dragon rouge : « Pour chaque action pivoter utilisée : -1 or. » */
+  'dragon-rouge': { coutParActivation: 1 },
 };

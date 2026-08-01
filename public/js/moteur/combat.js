@@ -4,7 +4,7 @@
 // l'exécution des effets et de l'orchestration — hors de resoudreCombat.
 
 import { forceTotale } from './force.js';
-import { ajusterRessources } from './partie.js';
+import { ajusterRessources, rendreTypeImprime } from './partie.js';
 
 /** @typedef {import('./partie.js').Partie} Partie */
 /** @typedef {import('./partie.js').EnnemiSurPiste} EnnemiSurPiste */
@@ -78,7 +78,7 @@ function gainSurvivant(ennemi) {
  * @returns {{ partie: Partie, victoire: boolean }}
  */
 export function resoudreCombat(partie, ciblesDefaite = []) {
-  const forceJoueur = forceTotale(partie.champDeBataille, partie.jetonsIgnores);
+  const forceJoueur = forceTotale(partie.champDeBataille, { jetonsIgnores: partie.jetonsIgnores });
   const forceEnnemis = forceEnnemisPortes(partie);
 
   if (forceJoueur >= forceEnnemis) {
@@ -86,7 +86,7 @@ export function resoudreCombat(partie, ciblesDefaite = []) {
     return {
       partie: Object.freeze({
         ...partie,
-        hopital: [...partie.hopital, ...partie.champDeBataille, ...recompenses],
+        hopital: [...partie.hopital, ...partie.champDeBataille.map(rendreTypeImprime), ...recompenses],
         champDeBataille: [],
         portes: [],
         premierCombatGagne: true,
@@ -123,7 +123,7 @@ export function resoudreCombat(partie, ciblesDefaite = []) {
   return {
     partie: Object.freeze({
       ...etat,
-      hopital: [...etat.hopital, ...etat.champDeBataille, ...recompenses],
+      hopital: [...etat.hopital, ...etat.champDeBataille.map(rendreTypeImprime), ...recompenses],
       champDeBataille: [],
       portes: portesRestantes,
     }),

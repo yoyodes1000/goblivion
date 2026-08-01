@@ -7,6 +7,33 @@ import { creerRng } from '../public/js/moteur/aleatoire.js';
 import { miseEnPlace } from '../public/js/moteur/mise-en-place.js';
 import { avancerEnnemis } from '../public/js/moteur/ennemi-avance.js';
 import { executerEffets } from '../public/js/moteur/effets.js';
+import { forceTotale } from '../public/js/moteur/force.js';
+import { viderChampDeBataille } from '../public/js/moteur/partie.js';
+import { copierAvecJoker } from '../public/js/moteur/special.js';
+
+/**
+ * Instance de test au type librement décrit (symbole, force, id).
+ * @param {string} instanceId @param {any} type
+ * @returns {import('../public/js/moteur/partie.js').InstanceAlliee}
+ */
+function instanceDeType(instanceId, type) {
+  return { instanceId, type };
+}
+
+/**
+ * Active l'effet SPECIAL de `typeId` sur la carte `carteActiveeId`.
+ * @param {any} partie @param {string | undefined} carteActiveeId @param {string} typeId
+ */
+function activerSpecial(partie, carteActiveeId, typeId) {
+  return executerEffets(
+    partie,
+    [{ type: 'SPECIAL', texte: '' }],
+    [],
+    creerRng(1),
+    carteActiveeId,
+    typeId,
+  ).partie;
+}
 
 /**
  * @param {string} id
@@ -72,6 +99,18 @@ test('OR : orBloque n’empêche pas les autres effets de l’action de se jouer
   );
   assert.equal(partie.ressources, p.ressources); // le gain est perdu
   assert.equal(partie.champDeBataille.length, 2); // mais la pioche a bien lieu
+});
+
+test('OR : aucun gain pendant le combat des Boss (« le feu au château »)', () => {
+  const p = { ...scenario([]), phase: /** @type {any} */ ('COMBAT_BOSS') };
+  const { partie } = executerEffets(p, [{ type: 'OR', valeur: 2 }], [], creerRng(1));
+  assert.equal(partie.ressources, p.ressources);
+});
+
+test('OR : pendant le combat des Boss, les pertes restent dues', () => {
+  const p = { ...scenario([]), phase: /** @type {any} */ ('COMBAT_BOSS') };
+  const { partie } = executerEffets(p, [{ type: 'OR', valeur: -3 }], [], creerRng(1));
+  assert.equal(partie.ressources, p.ressources - 3);
 });
 
 test('plusieurs effets s’enchaînent dans l’ordre de la liste', () => {
@@ -324,4 +363,120 @@ test('les reconstitutions du Château se propagent depuis PIOCHER', () => {
   const p = { ...scenario([]), chateau: [], hopital: remplissage };
   const { reconstitutions } = executerEffets(p, [{ type: 'PIOCHER', valeur: 2 }], [], creerRng(1));
   assert.equal(reconstitutions, 1);
+});
+
+// ── Héros du village : devient un Soldat le temps de son séjour en jeu ──────
+
+/** @returns {import('../public/js/moteur/partie.js').InstanceAlliee} */
+function herosDuVillage() {
+  return instanceDeType('heros#x', {
+    id: 'heros-du-village', nom: 'Héros du village', symbole: 'HUMAIN', force: 2, actions: [],
+  });
+}
+
+/** @param {string} n @returns {import('../public/js/moteur/partie.js').InstanceAlliee} */
+function soldat(n) {
+  return instanceDeType(`soldat#${n}`, {
+    id: 'soldat', nom: 'Soldat', symbole: 'HUMAIN', force: 'VARIABLE', actions: [],
+  });
+}
+
+test('Héros du village (SPECIAL) : prend le type Soldat, sa force imprimée passe au second plan', () => {
+  const p = scenario([herosDuVillage()]);
+  const [apres] = activerSpecial(p, 'heros#x', 'heros-du-village').champDeBataille;
+
+  assert.equal(apres?.type.id, 'soldat');
+  assert.equal(apres?.typeOrigine?.id, 'heros-du-village');
+});
+
+test('Héros du village : il entre dans le barème des Soldats, pour lui et pour les autres', () => {
+  const p = scenario([herosDuVillage(), soldat('1'), soldat('2')]);
+  assert.equal(forceTotale(p.champDeBataille), 2 + 3 + 3); // 2 Soldats à 3, plus le Héros à 2
+
+  const apres = activerSpecial(p, 'heros#x', 'heros-du-village');
+  assert.equal(forceTotale(apres.champDeBataille), 12); // 3 Soldats à 4
+});
+
+test('Héros du village : il redevient lui-même en rentrant à l’Hôpital', () => {
+  const p = scenario([herosDuVillage()]);
+  const { hopital } = viderChampDeBataille(activerSpecial(p, 'heros#x', 'heros-du-village'));
+
+  assert.equal(hopital[0]?.type.id, 'heros-du-village');
+  assert.equal(hopital[0]?.typeOrigine, undefined);
+});
+
+test('Héros du village : refusé hors contexte d’activation', () => {
+  const p = scenario([herosDuVillage()]);
+  assert.throws(() => activerSpecial(p, undefined, 'heros-du-village'), /aucune carte activée/);
+});
+
+// ── Chevalier : son action ENTRAINEMENT ajoute une carte Épée ───────────────
+
+test('Chevalier (SPECIAL) : ajoute une carte Épée bleue à l’Hôpital', () => {
+  const p = scenario([]);
+  const apres = activerSpecial(p, undefined, 'chevalier');
+
+  const epee = apres.hopital.find((c) => c.type.id === 'epee');
+  assert.ok(epee, 'l’Épée doit être à l’Hôpital');
+  assert.equal(epee?.type.symbole, 'OBJET');
+  assert.equal(apres.champDeBataille.length, 0); // elle arrive à l'Hôpital, pas en jeu
+});
+
+// ── Joker : copie un Paysan en jeu à son arrivée ────────────────────────────
+
+/** @returns {import('../public/js/moteur/partie.js').InstanceAlliee} */
+function joker(instanceId = 'joker#x') {
+  return instanceDeType(instanceId, {
+    id: 'joker', nom: 'Joker', symbole: 'HUMAIN', force: 'VARIABLE', actions: [],
+  });
+}
+
+/** @returns {import('../public/js/moteur/partie.js').InstanceAlliee} */
+function gentilhomme() {
+  return instanceDeType('gentilhomme#x', {
+    id: 'gentilhomme', nom: 'Gentilhomme', symbole: 'HUMAIN', force: 2, actions: [],
+  });
+}
+
+test('Joker : prend la force et les capacités du Paysan copié', () => {
+  const p = scenario([joker(), gentilhomme()]);
+  const apres = copierAvecJoker(p, 'joker#x', 'gentilhomme#x');
+
+  const copie = apres.champDeBataille.find((c) => c.instanceId === 'joker#x');
+  assert.equal(copie?.type.id, 'gentilhomme');
+  assert.equal(copie?.typeOrigine?.id, 'joker');
+  assert.equal(forceTotale(apres.champDeBataille), 4); // deux Gentilhommes à 2
+});
+
+test('Joker : redevient Joker en rentrant à l’Hôpital', () => {
+  const p = scenario([joker(), gentilhomme()]);
+  const { hopital } = viderChampDeBataille(copierAvecJoker(p, 'joker#x', 'gentilhomme#x'));
+
+  const rentre = hopital.find((c) => c.instanceId === 'joker#x');
+  assert.equal(rentre?.type.id, 'joker');
+  assert.equal(rentre?.typeOrigine, undefined);
+});
+
+test('Joker : ne peut pas copier une seconde fois — il n’est plus un Joker', () => {
+  const p = scenario([joker(), gentilhomme()]);
+  const apres = copierAvecJoker(p, 'joker#x', 'gentilhomme#x');
+  assert.throws(() => copierAvecJoker(apres, 'joker#x', 'gentilhomme#x'), /n’est pas un Joker/);
+});
+
+test('Joker : refuse une cible qui n’est ni Bleu ni Doré (dont un autre Joker)', () => {
+  const p = scenario([joker(), joker('joker#2')]);
+  assert.throws(() => copierAvecJoker(p, 'joker#x', 'joker#2'), /Bleu ou Doré/);
+});
+
+test('Joker : refuse une cible qui n’est pas un Paysan', () => {
+  const grimoire = instanceDeType('grimoire#x', {
+    id: 'grimoire', nom: 'Grimoire', symbole: 'OBJET', force: 0, actions: [],
+  });
+  const p = scenario([joker(), grimoire]);
+  assert.throws(() => copierAvecJoker(p, 'joker#x', 'grimoire#x'), /symbole HUMAIN/);
+});
+
+test('Joker : refuse une cible absente du Champ de bataille', () => {
+  const p = scenario([joker()]);
+  assert.throws(() => copierAvecJoker(p, 'joker#x', 'fantome#x'), /cible absente/);
 });

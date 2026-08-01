@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { creerRng } from '../public/js/moteur/aleatoire.js';
 import { miseEnPlace } from '../public/js/moteur/mise-en-place.js';
 import { activerPivoter } from '../public/js/moteur/pivoter.js';
+import { paysansBase } from '../public/js/moteur/cartes/index.js';
 
 /**
  * Une carte de test avec une action Pivoter donnée.
@@ -355,4 +356,22 @@ test('propage les reconstitutions du Château depuis les effets exécutés', () 
   };
   const { reconstitutions } = activerPivoter(p, 'scout#x', [], creerRng(1));
   assert.equal(reconstitutions, 1);
+});
+
+// Intégration sur les vraies données : le Héros du village est la seule carte
+// dont l'action Pivoter combine un coût en or et une substitution de type.
+
+test('Héros du village : son action réelle paie 1 or puis le change en Soldat', () => {
+  const type = paysansBase.find((c) => c.id === 'heros-du-village');
+  assert.ok(type, 'la carte doit exister dans les données');
+
+  const base = miseEnPlace({ roiReineId: 'margot', difficulte: 'NORMAL' }, creerRng(1));
+  const p = { ...base, champDeBataille: [{ instanceId: 'heros#x', type }] };
+
+  const { partie } = activerPivoter(p, 'heros#x', [], creerRng(1));
+
+  assert.equal(partie.ressources, base.ressources - 1);
+  assert.equal(partie.champDeBataille[0]?.type.id, 'soldat');
+  assert.equal(partie.champDeBataille[0]?.typeOrigine?.id, 'heros-du-village');
+  assert.ok(partie.cartesActivees.includes('heros#x'));
 });
