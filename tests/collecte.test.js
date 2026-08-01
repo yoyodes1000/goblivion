@@ -8,8 +8,11 @@ import assert from 'node:assert/strict';
 import { creerRng } from '../public/js/moteur/aleatoire.js';
 import { miseEnPlace } from '../public/js/moteur/mise-en-place.js';
 import { executerEffets } from '../public/js/moteur/effets.js';
+import { activerPouvoir } from '../public/js/moteur/pouvoir.js';
+import { dores } from '../public/js/moteur/cartes/index.js';
 import {
   demarrerCollecte,
+  demarrerCollectePouvoir,
   prochaineDemande,
   repondre,
   choixFinal,
@@ -298,4 +301,87 @@ test('un TESTAMENT collecté est accepté jusqu’au bout par le moteur', () => 
 
   assert.equal(partie.ressources, p.ressources + 3); // le TESTAMENT s'est bien joué
   assert.equal(partie.champDeBataille.length, 0);
+});
+
+// ── Pouvoirs Roi/Reine ──────────────────────────────────────────────────────
+// Ils passent par `activerPouvoir`, avec leur propre registre de besoins.
+
+/** @param {string} roiReineId @param {Partial<import('../public/js/moteur/partie.js').Partie>} [overrides] */
+function scenarioRoi(roiReineId, overrides = {}) {
+  const base = miseEnPlace({ roiReineId, difficulte: 'NORMAL' }, creerRng(1));
+  return { ...base, champDeBataille: [], hopital: [], ...overrides };
+}
+
+test('Margot et Loko : leurs pouvoirs ne demandent rien', () => {
+  assert.equal(prochaineDemande(demarrerCollectePouvoir(scenarioRoi('margot'))), null);
+  assert.equal(prochaineDemande(demarrerCollectePouvoir(scenarioRoi('loko'))), null);
+});
+
+test('Bella : ne propose que les cartes déjà activées, et en réclame 2', () => {
+  const p = scenarioRoi('bella', {
+    champDeBataille: [carte('a'), carte('b'), carte('pas-activee')],
+    cartesActivees: ['a#x', 'b#x'],
+  });
+  const demande = prochaineDemande(demarrerCollectePouvoir(p));
+
+  assert.equal(demande?.nombre, 2);
+  assert.deepEqual(demande?.options.map((o) => o.valeur), ['a#x', 'b#x']);
+});
+
+test('Yolo : deux choix d’affilée — la carte du Château, puis la case à révéler', () => {
+  // Seul pouvoir dont deux effets réclament chacun un choix : c'est lui qui
+  // met à l'épreuve l'arrêt du parcours sur une demande en attente.
+  const p = scenarioRoi('yolo', {
+    chateau: [carte('tresor')],
+    pisteEnnemi: [ennemi('a', false, 0), null, null],
+  });
+
+  const depart = demarrerCollectePouvoir(p);
+  assert.equal(prochaineDemande(depart)?.libelle, 'Choisis la carte du Château à poser en jeu');
+  assert.deepEqual(prochaineDemande(depart)?.options.map((o) => o.valeur), ['tresor#x']);
+
+  const apres = repondre(depart, ['tresor#x']);
+  assert.equal(prochaineDemande(apres)?.genre, 'CASES_PISTE');
+
+  assert.deepEqual(choixFinal(repondre(apres, ['0'])), [
+    { cibles: ['tresor#x'] },
+    { indexPiste: [0] },
+  ]);
+});
+
+test('Brod : ne propose que les Objets du marché, désignés par id de type', () => {
+  const demande = prochaineDemande(demarrerCollectePouvoir(scenarioRoi('brod')));
+  const objets = dores.filter((d) => d.symbole === 'OBJET').map((d) => d.id);
+
+  assert.deepEqual([...(demande?.options.map((o) => o.valeur) ?? [])].sort(), [...objets].sort());
+});
+
+test('Brod : une pile épuisée disparaît des propositions', () => {
+  const p = scenarioRoi('brod');
+  const [premierObjet] = dores.filter((d) => d.symbole === 'OBJET');
+  const marcheDore = p.marcheDore.map((m) => (m.typeId === premierObjet?.id ? { ...m, restant: 0 } : m));
+
+  const demande = prochaineDemande(demarrerCollectePouvoir({ ...p, marcheDore }));
+  assert.equal(demande?.options.some((o) => o.valeur === premierObjet?.id), false);
+});
+
+test('Jade : son DETRUIRE_HOPITAL passe par le chemin générique, sans entrée au registre', () => {
+  const p = scenarioRoi('jade', { hopital: [carte('malade')] });
+  const demande = prochaineDemande(demarrerCollectePouvoir(p));
+
+  assert.equal(demande?.libelle, 'Choisis la carte à détruire à l’Hôpital');
+  assert.deepEqual(demande?.options.map((o) => o.valeur), ['malade#x']);
+});
+
+test('les choix d’un pouvoir sont acceptés tels quels par activerPouvoir', () => {
+  const p = scenarioRoi('bella', {
+    champDeBataille: [carte('a'), carte('b')],
+    cartesActivees: ['a#x', 'b#x'],
+  });
+
+  const etat = repondre(demarrerCollectePouvoir(p), ['a#x', 'b#x']);
+  const { partie } = activerPouvoir(p, choixFinal(etat), creerRng(1));
+
+  assert.deepEqual(partie.cartesActivees, []); // les 2 cartes sont réactivées
+  assert.equal(partie.pouvoirUtilise, true);
 });
