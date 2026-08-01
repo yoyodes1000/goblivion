@@ -105,7 +105,7 @@ export function miseEnPlace(options, rng) {
     gardeDuCorps,
     marcheDore,
     pileEnnemi,
-    pisteEnnemi: [null, null, null, null],
+    pisteEnnemi: [null, null, null],
     portes: [],
     boss,
     pileBoss,

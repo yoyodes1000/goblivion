@@ -43,7 +43,7 @@ test('terminerPhaseEnnemiAvance : pile et piste non vides, avance normalement ve
 test('terminerPhaseEnnemiAvance : pile et piste vides, bascule vers le combat des Boss', () => {
   const p = scenario({
     pileEnnemi: [],
-    pisteEnnemi: [null, null, null, null],
+    pisteEnnemi: [null, null, null],
     portes: [ennemiAuxPortes()],
   });
 
@@ -57,7 +57,7 @@ test('terminerPhaseEnnemiAvance : pile et piste vides, bascule vers le combat de
 test('terminerPhaseEnnemiAvance : la bascule vers les Boss remet aussi les états de phase à zéro', () => {
   const p = scenario({
     pileEnnemi: [],
-    pisteEnnemi: [null, null, null, null],
+    pisteEnnemi: [null, null, null],
     portes: [ennemiAuxPortes()],
     jetonsIgnores: true,
     orBloque: true,

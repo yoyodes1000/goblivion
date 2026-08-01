@@ -25,26 +25,26 @@ test('une avancée fait apparaître un ennemi sur la case 1', () => {
   assert.equal(p.pileEnnemi.length, 14);
 });
 
-test('après 4 avancées la piste est pleine et les Portes vides', () => {
+test('après 3 avancées la piste est pleine et les Portes vides', () => {
   let p = neuve();
-  for (let i = 0; i < 4; i++) p = avancerEnnemis(p);
-  assert.equal(nbSurPiste(p), 4);
+  for (let i = 0; i < 3; i++) p = avancerEnnemis(p);
+  assert.equal(nbSurPiste(p), 3);
   assert.equal(p.portes.length, 0);
 });
 
-test('à la 5e avancée, le premier ennemi entre aux Portes', () => {
+test('à la 4e avancée, le premier ennemi entre aux Portes', () => {
   let p = neuve();
-  for (let i = 0; i < 5; i++) p = avancerEnnemis(p);
+  for (let i = 0; i < 4; i++) p = avancerEnnemis(p);
   assert.equal(p.portes.length, 1);
-  assert.equal(nbSurPiste(p), 4);
+  assert.equal(nbSurPiste(p), 3);
 });
 
 test('les Portes ne dépassent jamais 3 (l’excédent est détruit)', () => {
   let p = neuve();
   for (let i = 0; i < 8; i++) p = avancerEnnemis(p);
   assert.equal(p.portes.length, 3);
-  // 8 cartes sorties de la pile ; 3 aux Portes + 4 sur la piste = 7 → 1 détruite.
-  assert.equal(p.portes.length + nbSurPiste(p), 7);
+  // 8 cartes sorties de la pile ; 3 aux Portes + 3 sur la piste = 6 → 2 détruites.
+  assert.equal(p.portes.length + nbSurPiste(p), 6);
 });
 
 test('quand la pile et la piste sont vides, on bascule vers le combat des Boss', () => {

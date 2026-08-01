@@ -103,6 +103,22 @@ function modificateursDuCombat(partie, boss) {
 }
 
 /**
+ * Les modificateurs de force en vigueur dans l'état courant, Boss déduit de la
+ * phase. Exportée pour que l'interface affiche exactement la force que le
+ * combat calculera : sans elle, la vue recopierait la règle et finirait par en
+ * diverger.
+ *
+ * `resoudreCombatBoss` ne s'en sert pas — il connaît déjà son Boss et ne doit
+ * pas dépendre de la phase pour appliquer un PASSIF.
+ * @param {Partie} partie
+ * @returns {import('./force.js').ModificateursForce}
+ */
+export function modificateursDeForce(partie) {
+  const boss = partie.phase === 'COMBAT_BOSS' ? partie.boss[0] : undefined;
+  return boss ? modificateursDuCombat(partie, boss) : { jetonsIgnores: partie.jetonsIgnores };
+}
+
+/**
  * Fin de tentative : les cartes en jeu rejoignent l'Hôpital (on retentera avec
  * une pioche neuve), et les activations de la tentative sont oubliées — les
  * cartes « pivotées » viennent de quitter le Champ de bataille, et le compteur
