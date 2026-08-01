@@ -560,6 +560,89 @@ export const pouvoirsSpecial = {
 };
 
 /**
+ * Ce qu'un gestionnaire SPECIAL réclame comme choix, décrit pour l'interface.
+ *
+ * DESCRIPTIF, jamais normatif : il sert à savoir QUOI demander et quoi
+ * proposer au clic. La validation, elle, reste dans le gestionnaire, qui lève
+ * déjà une erreur explicite. Il n'y a donc pas deux sources de vérité mais deux
+ * rôles — un guide de saisie ici, un gardien là-bas. Un besoin trop large ne
+ * casse rien : le gestionnaire refusera.
+ *
+ * Vit dans ce fichier, collé aux gestionnaires qu'il décrit : séparés, les deux
+ * divergeraient sans que personne ne le voie.
+ * @typedef {object} BesoinSpecial
+ * @property {'CHAMP' | 'HOPITAL' | 'ENNEMIS'} source   Où puiser les candidats.
+ * @property {number} nombre                            Combien en désigner.
+ * @property {string} libelle                           Ce qu'on demande au joueur.
+ * @property {'HUMAIN' | 'OBJET'} [symbole]             Restriction de symbole.
+ * @property {readonly Filtre[]} [filtres]
+ * @property {'TESTAMENT' | 'COPIE'} [suite]            Choix imbriqué consommé ensuite.
+ */
+
+/**
+ * Restrictions supplémentaires sur les candidats, au-delà de la zone et du
+ * symbole. Des étiquettes plutôt que des prédicats : elles traversent la
+ * frontière moteur/interface sans y transporter de logique.
+ * @typedef {'LE_PLUS_FORT' | 'FORCE_MINIMUM_1' | 'AVEC_PIVOTER' | 'AUTRE_QUE_SOI' | 'AVEC_JETON'} Filtre
+ */
+
+/**
+ * Les besoins en choix, par `type.id`. Un gestionnaire absent n'en réclame
+ * aucun — c'est le cas le plus fréquent (Nain, Trollolole, Bébé troll…).
+ * @type {Record<string, BesoinSpecial>}
+ */
+export const besoinsSpecial = {
+  pretre: {
+    source: 'HOPITAL', nombre: 1, symbole: 'HUMAIN',
+    libelle: 'Choisis le Paysan à ramener de l’Hôpital, avec un jeton +1',
+  },
+  forgeron: {
+    source: 'HOPITAL', nombre: 1, symbole: 'OBJET',
+    libelle: 'Choisis l’Objet à ramener de l’Hôpital',
+  },
+  aimant: {
+    source: 'HOPITAL', nombre: 1, symbole: 'OBJET',
+    libelle: 'Choisis l’Objet à ramener de l’Hôpital',
+  },
+  champion: {
+    source: 'ENNEMIS', nombre: 1, filtres: ['AVEC_JETON'],
+    libelle: 'Choisis l’ennemi dont détruire le jeton bonus',
+  },
+  'epee-de-feu': {
+    source: 'CHAMP', nombre: 1,
+    libelle: 'Choisis la carte dont doubler le jeton bonus',
+  },
+  'horde-gobelin': {
+    source: 'CHAMP', nombre: 1, symbole: 'HUMAIN',
+    libelle: 'Choisis le Paysan envoyé à l’Hôpital',
+  },
+  'gobelin-vachelier': {
+    source: 'CHAMP', nombre: 1, symbole: 'HUMAIN', filtres: ['LE_PLUS_FORT'],
+    libelle: 'Envoie ton Paysan le plus fort à l’Hôpital (à toi de trancher en cas d’égalité)',
+  },
+  'dragon-serpent': {
+    source: 'CHAMP', nombre: 1, symbole: 'HUMAIN', filtres: ['LE_PLUS_FORT'],
+    libelle: 'Envoie ton Paysan le plus fort à l’Hôpital (à toi de trancher en cas d’égalité)',
+  },
+  'sorciere-troll': {
+    source: 'CHAMP', nombre: 1, symbole: 'HUMAIN', suite: 'TESTAMENT',
+    libelle: 'Choisis le Paysan à détruire',
+  },
+  'booba-brise-fer': {
+    source: 'CHAMP', nombre: 1, symbole: 'OBJET', suite: 'TESTAMENT',
+    libelle: 'Choisis l’Objet à détruire',
+  },
+  demon: {
+    source: 'CHAMP', nombre: 1, filtres: ['FORCE_MINIMUM_1'], suite: 'TESTAMENT',
+    libelle: 'Choisis une carte de force 1 ou plus à détruire',
+  },
+  'chapeau-magique': {
+    source: 'CHAMP', nombre: 1, filtres: ['AUTRE_QUE_SOI', 'AVEC_PIVOTER'], suite: 'COPIE',
+    libelle: 'Choisis la carte dont copier l’action Pivoter',
+  },
+};
+
+/**
  * L'effet PASSIF d'un Boss. Un PASSIF n'est jamais « exécuté » : c'est une
  * contrainte permanente que le combat doit prendre en compte, pas une action
  * qui se déclenche. D'où de la DONNÉE et non un gestionnaire — `combat-boss.js`
