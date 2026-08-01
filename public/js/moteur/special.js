@@ -11,7 +11,7 @@
 // `executerEffets`, qui ne connaît que `gestionnairesSpecial`).
 
 import { paysansBase, dores } from './cartes/index.js';
-import { ajouterJetonBonusAllie } from './partie.js';
+import { ajouterJetonBonusAllie, retirerJetonBonusEnnemi } from './partie.js';
 import { forceCarte } from './force.js';
 import { melanger } from './aleatoire.js';
 
@@ -165,6 +165,17 @@ export const gestionnairesSpecial = {
     if (!carteActiveeId) throw new Error('Protecteur mécanique : aucune carte activée dans ce contexte');
     const bonus = partie.hopital.filter((c) => c.type.symbole === 'OBJET').length;
     return ajouterJetonBonusAllie(partie, carteActiveeId, bonus);
+  },
+
+  /**
+   * Champion (PIVOTER) : détruit le jeton bonus de force d'un ennemi désigné
+   * par `choix.cibles` — qui contient ici l'instanceId d'une instance ENNEMI,
+   * pas d'une carte alliée.
+   */
+  champion(partie, choix) {
+    const [cible, ...reste] = choix?.cibles ?? [];
+    if (!cible || reste.length > 0) throw new Error('Champion : une seule cible attendue');
+    return retirerJetonBonusEnnemi(partie, cible);
   },
 
   forgeron: ramenerObjetHopital,

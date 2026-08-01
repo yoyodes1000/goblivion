@@ -165,6 +165,59 @@ test('Casque à cornes (SPECIAL) : chaque carte Bleu (Paysan de base) en jeu gag
   assert.equal(partie.champDeBataille.find((c) => c.instanceId === 'dore#x')?.jetonBonus, undefined);
 });
 
+/**
+ * Un ennemi de test aux Portes, avec son éventuel jeton bonus.
+ * @param {string} id
+ * @param {number} jetonBonus
+ * @returns {import('../public/js/moteur/partie.js').EnnemiSurPiste}
+ */
+function ennemi(id, jetonBonus) {
+  return {
+    instance: { instanceId: `${id}#e`, type: /** @type {any} */ ({ id, force: 3, niveau: 'UNE_EPEE' }) },
+    revele: true,
+    jetonBonus,
+  };
+}
+
+test('Champion (SPECIAL) : détruit le jeton bonus de l’ennemi désigné aux Portes', () => {
+  const champion = carteAvecPivoter('champion', [{ type: 'SPECIAL', texte: 'détruire un jeton bonus ennemi' }]);
+  const p = { ...scenario([champion]), portes: [ennemi('gob', 2), ennemi('autre', 1)] };
+
+  const { partie } = activerPivoter(p, 'champion#x', [{ cibles: ['gob#e'] }], creerRng(1));
+
+  assert.equal(partie.portes[0]?.jetonBonus, 0);
+  assert.equal(partie.portes[1]?.jetonBonus, 1); // les autres ennemis ne bougent pas
+});
+
+test('Champion (SPECIAL) : atteint aussi un ennemi resté sur la piste', () => {
+  const champion = carteAvecPivoter('champion', [{ type: 'SPECIAL', texte: 'détruire un jeton bonus ennemi' }]);
+  const p = { ...scenario([champion]), pisteEnnemi: [null, ennemi('gob', 2), null, null] };
+
+  const { partie } = activerPivoter(p, 'champion#x', [{ cibles: ['gob#e'] }], creerRng(1));
+
+  assert.equal(partie.pisteEnnemi[1]?.jetonBonus, 0);
+});
+
+test('Champion (SPECIAL) : refuse un ennemi sans jeton bonus', () => {
+  const champion = carteAvecPivoter('champion', [{ type: 'SPECIAL', texte: 'détruire un jeton bonus ennemi' }]);
+  const p = { ...scenario([champion]), portes: [ennemi('gob', 0)] };
+
+  assert.throws(
+    () => activerPivoter(p, 'champion#x', [{ cibles: ['gob#e'] }], creerRng(1)),
+    /aucun jeton bonus/,
+  );
+});
+
+test('Champion (SPECIAL) : refuse un ennemi introuvable', () => {
+  const champion = carteAvecPivoter('champion', [{ type: 'SPECIAL', texte: 'détruire un jeton bonus ennemi' }]);
+  const p = { ...scenario([champion]), portes: [ennemi('gob', 2)] };
+
+  assert.throws(
+    () => activerPivoter(p, 'champion#x', [{ cibles: ['inconnu#e'] }], creerRng(1)),
+    /Ennemi introuvable/,
+  );
+});
+
 test('Chapeau magique (SPECIAL) : copie l’action Pivoter de la carte désignée', () => {
   const chapeau = carteAvecPivoter('chapeau-magique', [
     { type: 'SPECIAL', texte: 'copier une action pivoter d’une carte en jeu' },

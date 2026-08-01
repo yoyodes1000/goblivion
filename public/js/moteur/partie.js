@@ -132,3 +132,31 @@ export function ajouterJetonBonusAllie(partie, instanceId, valeur) {
   );
   return Object.freeze({ ...partie, champDeBataille });
 }
+
+/**
+ * Détruit le jeton bonus de force d'un ennemi (effet SPECIAL du Champion) :
+ * son `jetonBonus` retombe à 0. Un ennemi ne porte qu'un seul jeton à la fois
+ * (voir `EnnemiSurPiste`), donc le détruire remet bien le champ à zéro plutôt
+ * que de le décrémenter. Cherché aux Portes comme sur la piste : c'est aux
+ * Portes que les jetons se posent aujourd'hui, mais l'ennemi les conserve en
+ * glissant, et rien dans le texte du Champion ne restreint la zone.
+ * @param {Partie} partie
+ * @param {string} instanceId   instanceId de l'INSTANCE ENNEMI visée.
+ * @returns {Partie}
+ */
+export function retirerJetonBonusEnnemi(partie, instanceId) {
+  const cible = [...partie.portes, ...partie.pisteEnnemi].find(
+    (e) => e?.instance.instanceId === instanceId,
+  );
+  if (!cible) throw new Error(`Ennemi introuvable (${instanceId})`);
+  if (cible.jetonBonus === 0) throw new Error('Cet ennemi n’a aucun jeton bonus à détruire');
+
+  const sansJeton = (/** @type {EnnemiSurPiste} */ e) =>
+    e.instance.instanceId === instanceId ? { ...e, jetonBonus: 0 } : e;
+
+  return Object.freeze({
+    ...partie,
+    portes: partie.portes.map(sansJeton),
+    pisteEnnemi: partie.pisteEnnemi.map((e) => (e ? sansJeton(e) : e)),
+  });
+}
