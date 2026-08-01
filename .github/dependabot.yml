@@ -1,0 +1,31 @@
+# Suivi des mises à jour de dépendances (CLAUDE.md, section Sécurité).
+#
+# C'est aussi ce qui rend tenable l'épinglage au SHA des actions dans
+# workflows/ci.yml : sans Dependabot pour proposer les montées de version, les
+# actions resteraient figées à leur commit d'origine.
+#
+# `target-branch: developpement` : les PR visent la branche de travail, jamais
+# `main` — c'est le flux de branches du CLAUDE.md.
+
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: /
+    target-branch: developpement
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      # Conventional Commits : `build` couvre les dépendances. Le projet n'a
+      # que des devDependencies, d'où le même préfixe pour les deux.
+      prefix: build
+      prefix-development: build
+
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: developpement
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci

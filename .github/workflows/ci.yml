@@ -1,0 +1,63 @@
+# Intégration continue — la barrière qualité du CLAUDE.md : « une PR de branche
+# feature/... ne peut être fusionnée dans developpement que si les tests
+# passent ».
+#
+# Les actions sont épinglées à un SHA de commit, pas à un tag : un tag peut
+# être redéplacé vers un autre commit, un SHA non. Le tag reste en commentaire
+# pour la lisibilité, et Dependabot (voir ../dependabot.yml) propose les
+# montées de version en PR — sans quoi l'épinglage figerait tout.
+#
+# Pas encore ici : les tests E2E à la promotion vers staging (ni interface ni
+# framework E2E à ce stade), et l'analyse statique du code (ESLint n'est pas
+# installé — `npm audit` scanne les dépendances, pas le code du projet).
+
+name: CI
+
+on:
+  pull_request:
+    branches: [developpement, staging, production, main]
+  push:
+    branches: [developpement, staging, production, main]
+
+# Moindre privilège : lire le dépôt suffit, aucun job n'écrit quoi que ce soit.
+permissions:
+  contents: read
+
+# Plusieurs poussées d'affilée sur une même PR n'occupent qu'un run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verification:
+    # Trois vérifications indépendantes qui partagent la même préparation :
+    # une matrice évite d'en recopier trois fois les étapes. `fail-fast: false`
+    # les laisse toutes rendre leur verdict — un test rouge ne doit pas masquer
+    # une erreur de types, sinon la correction se fait en deux allers-retours.
+    name: ${{ matrix.nom }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - nom: Tests
+            commande: npm test
+          - nom: Types
+            commande: npm run check
+          # Le projet n'a aucune dépendance de production : l'audit porte donc
+          # sur les devDependencies. Seuil « high » pour ne pas bloquer une
+          # fusion sur un avis mineur visant un outil de développement.
+          - nom: Audit des dépendances
+            commande: npm audit --audit-level=high
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24' # aligné sur le champ `engines` du package.json
+          cache: npm
+
+      # `npm ci` et non `npm install` : installation exacte au lockfile.
+      - run: npm ci
+      - run: ${{ matrix.commande }}
