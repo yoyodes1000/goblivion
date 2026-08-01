@@ -22,16 +22,20 @@
 // ne casse donc rien.
 //
 // Comme `vue.js`, elle ne laisse pas fuiter l'information cachée : un ennemi non
-// révélé proposé au clic ne livre pas son identité.
+// révélé proposé au clic ne livre pas son identité. UNE exception, assumée et
+// circonscrite : le pouvoir de Yolo consiste à fouiller son Château pour y
+// prendre une carte — comme on le ferait avec le paquet physique. La zone reste
+// cachée partout ailleurs.
 
 import { forceCarte } from '../moteur/force.js';
-import { besoinsSpecial } from '../moteur/special.js';
+import { besoinsSpecial, besoinsPouvoir } from '../moteur/special.js';
+import { dores } from '../moteur/cartes/index.js';
 
 /** @typedef {import('../moteur/partie.js').Partie} Partie */
 /** @typedef {import('../moteur/partie.js').InstanceAlliee} InstanceAlliee */
 /** @typedef {import('../moteur/cartes/types.js').Effet} Effet */
 /** @typedef {import('../moteur/effets.js').Choix} Choix */
-/** @typedef {import('../moteur/special.js').BesoinSpecial} BesoinSpecial */
+/** @typedef {import('../moteur/special.js').Besoin} Besoin */
 
 /**
  * Un candidat proposé au joueur. `valeur` est ce qui repartira vers le moteur :
@@ -57,6 +61,7 @@ import { besoinsSpecial } from '../moteur/special.js';
  * @typedef {object} Contexte
  * @property {string | undefined} [typeId]
  * @property {string | undefined} [carteActiveeId]
+ * @property {'CARTE' | 'POUVOIR'} [registre]   Quel registre de besoins consulter (défaut : les cartes).
  */
 
 /**
@@ -119,7 +124,7 @@ function optionCarte(carte) {
  * Restreint les candidats d'une zone selon le symbole et les filtres déclarés.
  * @param {readonly InstanceAlliee[]} cartes
  * @param {Partie} partie
- * @param {BesoinSpecial} besoin
+ * @param {Besoin} besoin
  * @param {Contexte} contexte
  * @returns {InstanceAlliee[]}
  */
@@ -149,7 +154,7 @@ function filtrerCartes(cartes, partie, besoin, contexte) {
  * reste cliquable — le jeton posé sur lui est visible — mais ne livre pas son
  * identité, comme dans `vue.js`.
  * @param {Partie} partie
- * @param {BesoinSpecial} besoin
+ * @param {Besoin} besoin
  * @returns {Option[]}
  */
 function optionsEnnemis(partie, besoin) {
@@ -169,16 +174,61 @@ function optionsEnnemis(partie, besoin) {
 }
 
 /**
- * Les candidats correspondant à un besoin SPECIAL.
+ * Les piles du marché encore fournies. La `valeur` rendue ici est un id de
+ * TYPE, pas un `instanceId` : la carte n'existe pas encore en tant qu'instance
+ * avant d'être obtenue, et le gestionnaire de Brod l'attend ainsi.
  * @param {Partie} partie
- * @param {BesoinSpecial} besoin
+ * @param {Besoin} besoin
+ * @returns {Option[]}
+ */
+function optionsMarche(partie, besoin) {
+  return partie.marcheDore.flatMap((pile) => {
+    const dore = dores.find((d) => d.id === pile.typeId);
+    if (!dore || pile.restant === 0) return [];
+    if (besoin.symbole && dore.symbole !== besoin.symbole) return [];
+    return [{ valeur: dore.id, libelle: `${dore.nom} (${pile.restant} en réserve)` }];
+  });
+}
+
+/**
+ * Les cartes déjà activées cette phase — seules cibles de la réactivation de
+ * Bella. Elles sont désignées par `cartesActivees`, pas par la zone : c'est
+ * l'activation qui les qualifie.
+ * @param {Partie} partie
+ * @returns {Option[]}
+ */
+function optionsActivees(partie) {
+  return partie.cartesActivees.map((instanceId) => {
+    const carte = partie.champDeBataille.find((c) => c.instanceId === instanceId);
+    return { valeur: instanceId, libelle: carte ? carte.type.nom : instanceId };
+  });
+}
+
+/**
+ * La zone de cartes alliées où puiser les candidats.
+ * @param {Partie} partie
+ * @param {import('../moteur/special.js').Source} source
+ * @returns {readonly InstanceAlliee[]}
+ */
+function zoneDuBesoin(partie, source) {
+  if (source === 'HOPITAL') return partie.hopital;
+  if (source === 'CHATEAU') return partie.chateau;
+  return partie.champDeBataille;
+}
+
+/**
+ * Les candidats correspondant à un besoin.
+ * @param {Partie} partie
+ * @param {Besoin} besoin
  * @param {Contexte} contexte
  * @returns {Option[]}
  */
 function optionsPourBesoin(partie, besoin, contexte) {
   if (besoin.source === 'ENNEMIS') return optionsEnnemis(partie, besoin);
+  if (besoin.source === 'MARCHE') return optionsMarche(partie, besoin);
+  if (besoin.source === 'ACTIVEES') return optionsActivees(partie);
 
-  const zone = besoin.source === 'HOPITAL' ? partie.hopital : partie.champDeBataille;
+  const zone = zoneDuBesoin(partie, besoin.source);
   return filtrerCartes(zone, partie, besoin, contexte).map(optionCarte);
 }
 
@@ -255,7 +305,8 @@ function choixDeLaCopie(partie, instanceId, contexte, lecteur) {
  * @returns {Choix | undefined}
  */
 function choixDuSpecial(partie, contexte, lecteur) {
-  const besoin = contexte.typeId ? besoinsSpecial[contexte.typeId] : undefined;
+  const registre = contexte.registre === 'POUVOIR' ? besoinsPouvoir : besoinsSpecial;
+  const besoin = contexte.typeId ? registre[contexte.typeId] : undefined;
   if (!besoin) return undefined; // la plupart des gestionnaires ne demandent rien
 
   const cibles = lire(lecteur, {
@@ -384,6 +435,19 @@ function rejouer(etat) {
  */
 export function demarrerCollecte(partie, effets, contexte = {}) {
   return Object.freeze({ partie, effets, contexte, reponses: [] });
+}
+
+/**
+ * Ouvre une collecte pour le pouvoir Roi/Reine de la partie. Pendant exact
+ * d'`activerPouvoir` : mêmes effets, même ordre, donc mêmes indices de choix.
+ * @param {Partie} partie
+ * @returns {EtatCollecte}
+ */
+export function demarrerCollectePouvoir(partie) {
+  return demarrerCollecte(partie, partie.roiReine.pouvoir.effets, {
+    typeId: partie.roiReine.id,
+    registre: 'POUVOIR',
+  });
 }
 
 /**

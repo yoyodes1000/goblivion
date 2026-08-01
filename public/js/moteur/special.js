@@ -570,13 +570,26 @@ export const pouvoirsSpecial = {
  *
  * Vit dans ce fichier, collé aux gestionnaires qu'il décrit : séparés, les deux
  * divergeraient sans que personne ne le voie.
- * @typedef {object} BesoinSpecial
- * @property {'CHAMP' | 'HOPITAL' | 'ENNEMIS'} source   Où puiser les candidats.
- * @property {number} nombre                            Combien en désigner.
- * @property {string} libelle                           Ce qu'on demande au joueur.
- * @property {'HUMAIN' | 'OBJET'} [symbole]             Restriction de symbole.
+ * @typedef {object} Besoin
+ * @property {Source} source                  Où puiser les candidats.
+ * @property {number} nombre                  Combien en désigner.
+ * @property {string} libelle                 Ce qu'on demande au joueur.
+ * @property {'HUMAIN' | 'OBJET'} [symbole]   Restriction de symbole.
  * @property {readonly Filtre[]} [filtres]
- * @property {'TESTAMENT' | 'COPIE'} [suite]            Choix imbriqué consommé ensuite.
+ * @property {'TESTAMENT' | 'COPIE'} [suite]  Choix imbriqué consommé ensuite.
+ */
+
+/**
+ * Où puiser les candidats d'un besoin.
+ *
+ * `CHATEAU` est une entorse assumée au secret de la pioche : le pouvoir de Yolo
+ * consiste précisément à fouiller son Château pour y prendre une carte, comme
+ * on le ferait avec le paquet physique. La zone reste cachée partout ailleurs.
+ *
+ * `MARCHE` désigne les piles du marché Doré, et rend exceptionnellement des
+ * **ids de type** plutôt que des `instanceId` : la carte n'existe pas encore en
+ * tant qu'instance avant d'être obtenue (voir le gestionnaire de Brod).
+ * @typedef {'CHAMP' | 'HOPITAL' | 'ENNEMIS' | 'CHATEAU' | 'MARCHE' | 'ACTIVEES'} Source
  */
 
 /**
@@ -589,7 +602,7 @@ export const pouvoirsSpecial = {
 /**
  * Les besoins en choix, par `type.id`. Un gestionnaire absent n'en réclame
  * aucun — c'est le cas le plus fréquent (Nain, Trollolole, Bébé troll…).
- * @type {Record<string, BesoinSpecial>}
+ * @type {Record<string, Besoin>}
  */
 export const besoinsSpecial = {
   pretre: {
@@ -639,6 +652,29 @@ export const besoinsSpecial = {
   'chapeau-magique': {
     source: 'CHAMP', nombre: 1, filtres: ['AUTRE_QUE_SOI', 'AVEC_PIVOTER'], suite: 'COPIE',
     libelle: 'Choisis la carte dont copier l’action Pivoter',
+  },
+};
+
+/**
+ * Les besoins en choix des pouvoirs Roi/Reine, par `roiReine.id`. Registre
+ * distinct pour la même raison que `pouvoirsSpecial` l'est de
+ * `gestionnairesSpecial` : deux espaces de noms séparés, que mêler rendrait
+ * fragile pour un gain nul. Margot et Loko n'y figurent pas — leurs pouvoirs
+ * ne demandent rien.
+ * @type {Record<string, Besoin>}
+ */
+export const besoinsPouvoir = {
+  bella: {
+    source: 'ACTIVEES', nombre: 2,
+    libelle: 'Choisis 2 cartes activées à réactiver',
+  },
+  yolo: {
+    source: 'CHATEAU', nombre: 1,
+    libelle: 'Choisis la carte du Château à poser en jeu',
+  },
+  brod: {
+    source: 'MARCHE', nombre: 1, symbole: 'OBJET',
+    libelle: 'Choisis l’Objet du marché à obtenir (coût déjà déduit)',
   },
 };
 
