@@ -190,10 +190,13 @@ export function executerEffets(partie, effets, choix, rng, carteActiveeId, carte
 
       case 'OR': {
         const valeur = effet.valeur ?? 0;
-        // Troll saboteur : aucun gain d'or pour ce combat. L'action se joue
-        // quand même (la carte est bien activée, ses autres effets tiennent),
-        // seul le gain est perdu ; les pertes, elles, restent dues.
-        if (!(etat.orBloque && valeur > 0)) {
+        // Deux raisons d'annuler un GAIN d'or — jamais une perte : le Troll
+        // saboteur, le temps d'un combat (`orBloque`), et le combat des Boss,
+        // où « les Boss ont mis le feu au château » (règles p.15). Dans les
+        // deux cas l'action se joue quand même : la carte est bien activée,
+        // ses autres effets tiennent, seul le gain est perdu.
+        const gainsBloques = etat.orBloque || etat.phase === 'COMBAT_BOSS';
+        if (!(gainsBloques && valeur > 0)) {
           etat = ajusterRessources(etat, valeur);
         }
         break;

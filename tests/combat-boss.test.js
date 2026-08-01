@@ -87,7 +87,13 @@ function carte(id, force) {
  */
 function scenario(champ, file, ressources = 18) {
   const base = miseEnPlace({ roiReineId: 'margot', difficulte: 'NORMAL' }, creerRng(1));
-  return { ...base, champDeBataille: champ, boss: file, ressources };
+  return {
+    ...base,
+    phase: /** @type {any} */ ('COMBAT_BOSS'),
+    champDeBataille: champ,
+    boss: file,
+    ressources,
+  };
 }
 
 /**

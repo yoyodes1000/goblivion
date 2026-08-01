@@ -21,10 +21,14 @@ import { dores } from './cartes/index.js';
 /**
  * Entraîne une carte Doré : pioche, atteint (ou paie) la cible de force, détruit
  * une carte en jeu du symbole demandé, et ajoute la Doré obtenue à l'Hôpital.
+ *
+ * Remonte le nombre de reconstitutions du Château sans en tirer de conséquence,
+ * comme les autres dispatchers : c'est à l'appelant de la traiter (voir
+ * `appliquerChateauVide` dans `orchestration.js`).
  * @param {Partie} partie
  * @param {OptionsEntrainement} options
  * @param {() => number} rng
- * @returns {Partie}
+ * @returns {{ partie: Partie, reconstitutions: number }}
  */
 export function entrainer(partie, options, rng) {
   const dore = dores.find((d) => d.id === options.doreId);
@@ -38,7 +42,7 @@ export function entrainer(partie, options, rng) {
   }
 
   // Piocher le nombre de cartes indiqué par le coût d'entraînement.
-  const { partie: apresPioche } = piocher(partie, dore.entrainement.piocher, rng);
+  const { partie: apresPioche, reconstitutions } = piocher(partie, dore.entrainement.piocher, rng);
 
   // Comparer la force à la cible ; payer la différence en ressources si besoin.
   const force = forceTotale(apresPioche.champDeBataille);
@@ -79,7 +83,11 @@ export function entrainer(partie, options, rng) {
   // vient d'être vidé. Pas de choix non plus — le seul effet existant (Chevalier)
   // n'en demande aucun ; le jour où ce sera le cas, la signature évoluera.
   const action = dore.actions.find((a) => a.declencheur === 'ENTRAINEMENT');
-  if (!action) return etat;
+  if (!action) return { partie: etat, reconstitutions };
 
-  return executerEffets(etat, action.effets, [], rng, undefined, dore.id).partie;
+  const resultat = executerEffets(etat, action.effets, [], rng, undefined, dore.id);
+  return {
+    partie: resultat.partie,
+    reconstitutions: reconstitutions + resultat.reconstitutions,
+  };
 }

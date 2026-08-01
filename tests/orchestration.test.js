@@ -1,11 +1,17 @@
-// Tests de la bascule L'Ennemi Avance → combat des Boss.
+// Tests de la bascule L'Ennemi Avance → combat des Boss, et de la conséquence
+// d'un Château vide.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { creerRng } from '../public/js/moteur/aleatoire.js';
 import { miseEnPlace } from '../public/js/moteur/mise-en-place.js';
-import { detruireEnnemisAuxPortes, terminerPhaseEnnemiAvance } from '../public/js/moteur/orchestration.js';
+import { avancerEnnemis } from '../public/js/moteur/ennemi-avance.js';
+import {
+  detruireEnnemisAuxPortes,
+  terminerPhaseEnnemiAvance,
+  appliquerChateauVide,
+} from '../public/js/moteur/orchestration.js';
 
 /** @returns {import('../public/js/moteur/partie.js').EnnemiSurPiste} */
 function ennemiAuxPortes() {
@@ -46,4 +52,50 @@ test('terminerPhaseEnnemiAvance : pile et piste vides, bascule vers le combat de
   assert.equal(partie.phase, 'COMBAT_BOSS');
   assert.equal(partie.portes.length, 0);
   assert.equal(partie.tour, p.tour); // pas un nouveau tour, un changement de mode
+});
+
+test('terminerPhaseEnnemiAvance : la bascule vers les Boss remet aussi les états de phase à zéro', () => {
+  const p = scenario({
+    pileEnnemi: [],
+    pisteEnnemi: [null, null, null, null],
+    portes: [ennemiAuxPortes()],
+    jetonsIgnores: true,
+    orBloque: true,
+    gardeDuCorpsEchange: true,
+    cartesActivees: ['x#a'],
+  });
+
+  const partie = terminerPhaseEnnemiAvance(p);
+
+  assert.equal(partie.jetonsIgnores, false);
+  assert.equal(partie.orBloque, false);
+  assert.equal(partie.gardeDuCorpsEchange, false);
+  assert.deepEqual(partie.cartesActivees, []);
+});
+
+// Château vide (règles p.8) : l'ennemi avance, une fois par reconstitution.
+
+test('appliquerChateauVide : une reconstitution fait avancer l’ennemi une fois', () => {
+  const p = scenario();
+  const attendu = avancerEnnemis(p);
+  const partie = appliquerChateauVide(p, 1);
+
+  assert.deepEqual(partie.pisteEnnemi, attendu.pisteEnnemi);
+  assert.equal(partie.pileEnnemi.length, p.pileEnnemi.length - 1);
+});
+
+test('appliquerChateauVide : deux reconstitutions font avancer deux fois', () => {
+  const p = scenario();
+  const partie = appliquerChateauVide(p, 2);
+  assert.equal(partie.pileEnnemi.length, p.pileEnnemi.length - 2);
+});
+
+test('appliquerChateauVide : sans reconstitution, l’état est inchangé', () => {
+  const p = scenario();
+  assert.equal(appliquerChateauVide(p, 0), p);
+});
+
+test('appliquerChateauVide : sans effet pendant le combat des Boss, qui paie en ressources', () => {
+  const p = scenario({ phase: /** @type {any} */ ('COMBAT_BOSS') });
+  assert.equal(appliquerChateauVide(p, 3), p);
 });

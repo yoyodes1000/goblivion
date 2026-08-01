@@ -63,25 +63,37 @@ import { phaseSuivante } from './phases.js';
  */
 
 /**
+ * Remet à zéro les états qui ne valent que le temps d'une phase
+ * (`gardeDuCorpsEchange`, `cartesActivees`) ou d'un combat (`jetonsIgnores`,
+ * `orBloque`).
+ *
+ * À appeler à CHAQUE changement de phase — y compris la bascule vers le combat
+ * des Boss, qui ne passe pas par `avancerPhase` (voir `orchestration.js`).
+ * D'où cette fonction à part plutôt qu'un bloc recopié : deux chemins mènent à
+ * une nouvelle phase, la règle ne doit exister qu'une fois.
+ * @param {Partie} partie
+ * @returns {Partie}
+ */
+export function reinitialiserEtatsDePhase(partie) {
+  return Object.freeze({
+    ...partie,
+    gardeDuCorpsEchange: false,
+    cartesActivees: [],
+    jetonsIgnores: false,
+    orBloque: false,
+  });
+}
+
+/**
  * Fait avancer la partie d'une phase. Le numéro de tour s'incrémente au retour
- * sur « Entraînement » (nouveau tour). Les états valables « pour ce combat »
- * (`jetonsIgnores`, `orBloque`) ou « cette phase » (`gardeDuCorpsEchange`,
- * `cartesActivees`) retombent ici.
+ * sur « Entraînement » (nouveau tour) ; les états de phase retombent.
  * @param {Partie} partie
  * @returns {Partie}
  */
 export function avancerPhase(partie) {
   const phase = phaseSuivante(partie.phase);
   const tour = phase === 'ENTRAINEMENT' ? partie.tour + 1 : partie.tour;
-  return Object.freeze({
-    ...partie,
-    phase,
-    tour,
-    gardeDuCorpsEchange: false,
-    cartesActivees: [],
-    jetonsIgnores: false,
-    orBloque: false,
-  });
+  return Object.freeze({ ...reinitialiserEtatsDePhase(partie), phase, tour });
 }
 
 /**

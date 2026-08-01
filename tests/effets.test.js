@@ -101,6 +101,18 @@ test('OR : orBloque n’empêche pas les autres effets de l’action de se jouer
   assert.equal(partie.champDeBataille.length, 2); // mais la pioche a bien lieu
 });
 
+test('OR : aucun gain pendant le combat des Boss (« le feu au château »)', () => {
+  const p = { ...scenario([]), phase: /** @type {any} */ ('COMBAT_BOSS') };
+  const { partie } = executerEffets(p, [{ type: 'OR', valeur: 2 }], [], creerRng(1));
+  assert.equal(partie.ressources, p.ressources);
+});
+
+test('OR : pendant le combat des Boss, les pertes restent dues', () => {
+  const p = { ...scenario([]), phase: /** @type {any} */ ('COMBAT_BOSS') };
+  const { partie } = executerEffets(p, [{ type: 'OR', valeur: -3 }], [], creerRng(1));
+  assert.equal(partie.ressources, p.ressources - 3);
+});
+
 test('plusieurs effets s’enchaînent dans l’ordre de la liste', () => {
   const p = scenario([]);
   const { partie } = executerEffets(

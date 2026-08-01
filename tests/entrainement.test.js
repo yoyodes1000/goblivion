@@ -31,7 +31,7 @@ function scenario(chateau, ressources = 18, premierCombatGagne = false) {
 
 test('entraînement réussi : la Doré rejoint l’Hôpital, le sacrifice est détruit', () => {
   const p = scenario([carte('a', 1), carte('b', 1), carte('c', 0), carte('d', 0)]);
-  const r = entrainer(p, { doreId: 'batisseur', sacrifieInstanceId: 'a#x' }, creerRng(1));
+  const { partie: r } = entrainer(p, { doreId: 'batisseur', sacrifieInstanceId: 'a#x' }, creerRng(1));
   assert.ok(r.hopital.some((c) => c.type.id === 'batisseur'), 'la Doré doit être à l’Hôpital');
   assert.ok(!r.hopital.some((c) => c.instanceId === 'a#x'), 'le sacrifice ne doit pas être à l’Hôpital');
   assert.ok(r.hopital.some((c) => c.instanceId === 'b#x'), 'les autres cartes en jeu vont à l’Hôpital');
@@ -42,7 +42,7 @@ test('entraînement réussi : la Doré rejoint l’Hôpital, le sacrifice est d�
 
 test('entraînement : la différence jusqu’à la cible est payée en ressources', () => {
   const p = scenario([carte('a', 0), carte('b', 0), carte('c', 0), carte('d', 0)]);
-  const r = entrainer(p, { doreId: 'batisseur', sacrifieInstanceId: 'a#x' }, creerRng(1));
+  const { partie: r } = entrainer(p, { doreId: 'batisseur', sacrifieInstanceId: 'a#x' }, creerRng(1));
   assert.equal(r.ressources, 16); // cible 2, force 0 → paie 2
 });
 
@@ -76,7 +76,7 @@ test('entraînement : ressources insuffisantes pour la cible → refusé', () =>
 test('Chevalier : l’entraîner ajoute aussi une carte Épée à l’Hôpital', () => {
   const chateau = [carte('a', 4), carte('b', 4), carte('c', 0), carte('d', 0)];
   const p = scenario(chateau, 18, true);
-  const r = entrainer(p, { doreId: 'chevalier', sacrifieInstanceId: 'a#x' }, creerRng(1));
+  const { partie: r } = entrainer(p, { doreId: 'chevalier', sacrifieInstanceId: 'a#x' }, creerRng(1));
 
   assert.ok(r.hopital.some((c) => c.type.id === 'chevalier'), 'la Doré entraînée');
   assert.ok(r.hopital.some((c) => c.type.id === 'epee'), 'l’Épée offerte par son action');
@@ -86,6 +86,23 @@ test('Chevalier : l’entraîner ajoute aussi une carte Épée à l’Hôpital',
 
 test('une Doré sans action ENTRAINEMENT ne rapporte rien de plus', () => {
   const p = scenario([carte('a', 1), carte('b', 1), carte('c', 0), carte('d', 0)]);
-  const r = entrainer(p, { doreId: 'batisseur', sacrifieInstanceId: 'a#x' }, creerRng(1));
+  const { partie: r } = entrainer(p, { doreId: 'batisseur', sacrifieInstanceId: 'a#x' }, creerRng(1));
   assert.equal(r.hopital.some((c) => c.type.id === 'epee'), false);
+});
+
+test('entrainer remonte les reconstitutions du Château sans en tirer de conséquence', () => {
+  // Château vide, Hôpital à exactement 4 cartes : la reconstitution est
+  // immédiate et les 4 cartes sont piochées, quel que soit l'ordre du mélange.
+  const remplissage = Array.from({ length: 4 }, (_, i) => carte(`c${i}`, 0));
+  const p = { ...scenario([]), hopital: remplissage };
+
+  const { partie, reconstitutions } = entrainer(
+    p,
+    { doreId: 'batisseur', sacrifieInstanceId: 'c0#x' },
+    creerRng(1),
+  );
+
+  assert.equal(reconstitutions, 1);
+  assert.equal(partie.ressources, 16); // cible 2, force 0 → paie 2 ; aucune pénalité de Château
+  assert.deepEqual(partie.pisteEnnemi, p.pisteEnnemi); // l'ennemi n'a pas avancé : c'est à l'appelant d'agir
 });
