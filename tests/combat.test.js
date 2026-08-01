@@ -74,6 +74,22 @@ test('défaite : cibler au-delà de sa force lève une erreur', () => {
   assert.throws(() => resoudreCombat(p, [0]), /Force insuffisante/);
 });
 
+test('jetonsIgnores (Gobelin pestilant) : les jetons alliés ne comptent plus, la victoire bascule en défaite', () => {
+  const allieJetonne = { ...allie('gentilhomme', 3), jetonBonus: 2 };
+  const p = { ...scenario([allieJetonne], [ennemi('gob', 5, 'UNE_EPEE')]), jetonsIgnores: true };
+
+  const { victoire } = resoudreCombat(p, []);
+
+  assert.equal(victoire, false); // 3 seul face à 5, au lieu de 3 + 2 = 5
+});
+
+test('jetonsIgnores absent : le même combat est gagné grâce au jeton', () => {
+  const allieJetonne = { ...allie('gentilhomme', 3), jetonBonus: 2 };
+  const { victoire } = resoudreCombat(scenario([allieJetonne], [ennemi('gob', 5, 'UNE_EPEE')]));
+
+  assert.equal(victoire, true);
+});
+
 test('le jeton bonus d’un survivant est plafonné à un seul', () => {
   const { partie } = resoudreCombat(scenario([allie('vieux', 0)], [ennemi('gob', 5, 'UNE_EPEE', 2)]), []);
   assert.equal(partie.portes[0]?.jetonBonus, 2); // déjà un jeton → inchangé

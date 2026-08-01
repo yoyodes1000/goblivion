@@ -222,6 +222,23 @@ test('Booba Brise-Fer (SPECIAL) : refuse une cible qui n’est pas un Objet (sym
   );
 });
 
+test('Gobelin pestilant (SPECIAL) : lève jetonsIgnores sans toucher aux jetons des cartes', () => {
+  const paysan = {
+    instanceId: 'paysan#x',
+    type: /** @type {any} */ ({ id: 'paysan', force: 1, symbole: 'HUMAIN', actions: [] }),
+    jetonBonus: 2,
+  };
+  const p = scenario(
+    [ennemi('gobelin-pestilant', [{ type: 'SPECIAL', texte: 'ignorer les jetons +1 et +2 force pour ce combat' }])],
+    { champDeBataille: [paysan] },
+  );
+
+  const { partie } = revelerAuxPortes(p, 0, [], creerRng(1));
+
+  assert.equal(partie.jetonsIgnores, true);
+  assert.equal(partie.champDeBataille[0]?.jetonBonus, 2); // le jeton est ignoré, pas retiré
+});
+
 test('index hors bornes lève une erreur', () => {
   const p = scenario([]);
   assert.throws(() => revelerAuxPortes(p, 0, [], creerRng(1)), /Aucun ennemi/);

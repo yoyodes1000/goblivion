@@ -92,6 +92,7 @@ export function miseEnPlace(options, rng) {
     premierCombatGagne: false,
     gardeDuCorpsEchange: false,
     cartesActivees: [],
+    jetonsIgnores: false,
     jetonsBonusDepart: JETONS_DEPART[options.difficulte],
     chateau,
     hopital: [],

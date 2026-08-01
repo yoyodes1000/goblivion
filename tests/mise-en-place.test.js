@@ -87,3 +87,8 @@ test('avancerPhase réinitialise les cartes activées (Pivoter)', () => {
   const p = { ...partieTest('NORMAL'), cartesActivees: ['a#x', 'b#x'] };
   assert.deepEqual(avancerPhase(p).cartesActivees, []);
 });
+
+test('avancerPhase réinitialise les jetons ignorés (Gobelin pestilant, « pour ce combat »)', () => {
+  const p = { ...partieTest('NORMAL'), jetonsIgnores: true };
+  assert.equal(avancerPhase(p).jetonsIgnores, false);
+});

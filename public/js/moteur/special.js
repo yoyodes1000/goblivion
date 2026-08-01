@@ -225,6 +225,17 @@ export const gestionnairesSpecial = {
   },
 
   /**
+   * Gobelin pestilant (REVELATION) : annule les jetons bonus des cartes du
+   * Champ de bataille pour le calcul de force de ce combat (`jetonsIgnores`,
+   * remis à false par `avancerPhase`). Les jetons ne sont pas retirés des
+   * cartes : ils redeviennent effectifs au combat suivant. Le Garde du corps
+   * n'est pas concerné — il ne compte déjà pas dans la force du combat.
+   */
+  'gobelin-pestilant'(partie) {
+    return Object.freeze({ ...partie, jetonsIgnores: true });
+  },
+
+  /**
    * Horde Gobelin (REVELATION) : envoie un Paysan désigné à l'Hôpital.
    */
   'horde-gobelin'(partie, choix) {

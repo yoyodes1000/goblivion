@@ -48,3 +48,15 @@ test('un jeton bonus s’ajoute à la force variable du Soldat', () => {
 test('une carte à force VARIABLE non gérée (ex. Joker) compte au moins son jeton bonus', () => {
   assert.equal(forceTotale([inst('joker', 'VARIABLE', 2)]), 2); // pas 0 : le bonus n'est pas perdu
 });
+
+test('jetonsIgnores : les jetons bonus ne comptent plus, la force imprimée reste', () => {
+  assert.equal(forceTotale([inst('gentilhomme', 2, 3)], true), 2);
+});
+
+test('jetonsIgnores : le barème variable du Soldat n’est pas un jeton, il reste compté', () => {
+  assert.equal(forceTotale([inst('soldat', 'VARIABLE', 1)], true), 2); // 2 (1 Soldat), sans le +1
+});
+
+test('jetonsIgnores : les forces négatives restent dues (ce n’est pas un plancher)', () => {
+  assert.equal(forceTotale([inst('mendiant', -1, 2)], true), -1);
+});
