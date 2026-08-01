@@ -76,8 +76,12 @@ export function miseEnPlace(options, rng) {
     .slice(0, ENNEMIS_DEUX_EPEES);
   const pileEnnemi = [...uneEpee, ...deuxEpees];
 
-  // 7. Boss : 3 / 4 / 5 selon la difficulté.
-  const boss = melanger(instancier(bosses), rng).slice(0, NB_BOSS[options.difficulte]);
+  // 7. Boss : 3 / 4 / 5 selon la difficulté. Les non-tirés sont conservés en
+  // réserve (`pileBoss`) : Bébé troll y puise pour ajouter un Boss en cours de
+  // partie. Déjà mélangée, donc son dessus est un Boss au hasard.
+  const bossMelanges = melanger(instancier(bosses), rng);
+  const boss = bossMelanges.slice(0, NB_BOSS[options.difficulte]);
+  const pileBoss = bossMelanges.slice(NB_BOSS[options.difficulte]);
 
   // 5. Ressources de départ ; en Difficile la partie commence par « L'Ennemi Avance ».
   const phase = options.difficulte === 'DIFFICILE' ? 'ENNEMI_AVANCE' : 'ENTRAINEMENT';
@@ -104,5 +108,6 @@ export function miseEnPlace(options, rng) {
     pisteEnnemi: [null, null, null, null],
     portes: [],
     boss,
+    pileBoss,
   });
 }

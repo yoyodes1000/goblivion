@@ -43,6 +43,14 @@ test('le nombre de Boss dépend de la difficulté', () => {
   assert.equal(partieTest('DIFFICILE').boss.length, 5);
 });
 
+test('les Boss non tirés forment la réserve, sans perte ni doublon', () => {
+  const p = partieTest('NORMAL');
+  const tous = [...p.boss, ...p.pileBoss].map((c) => c.instanceId);
+
+  assert.equal(p.pileBoss.length, 11 - 4); // 11 Boss au total, 4 tirés en Normal
+  assert.equal(new Set(tous).size, 11);    // aucun Boss dupliqué ni perdu
+});
+
 test('la difficulté Difficile démarre par la phase « L’Ennemi Avance »', () => {
   assert.equal(partieTest('DIFFICILE').phase, 'ENNEMI_AVANCE');
   assert.equal(partieTest('NORMAL').phase, 'ENTRAINEMENT');

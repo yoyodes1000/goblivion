@@ -236,6 +236,25 @@ export const gestionnairesSpecial = {
   },
 
   /**
+   * Bébé troll (REVELATION) : ajoute un Boss à affronter, pris sur le dessus
+   * de la réserve des Boss non tirés à la mise en place (`pileBoss`, déjà
+   * mélangée). Ajouté en fin de file : les Boss déjà prévus gardent leur
+   * ordre, celui-ci s'affronte en dernier.
+   *
+   * Réserve vide : l'état est inchangé plutôt qu'une erreur. Contrairement à
+   * une cible mal désignée (bug d'interface), c'est ici une conséquence
+   * possible de l'état du jeu, subie par le joueur sans qu'il ait rien
+   * choisi — la révélation ne doit pas planter pour autant. En pratique
+   * inatteignable : 11 Boss pour 5 tirés au maximum, et Bébé troll n'existe
+   * qu'en un exemplaire.
+   */
+  'bebe-troll'(partie) {
+    const [ajoute, ...reste] = partie.pileBoss;
+    if (!ajoute) return partie;
+    return Object.freeze({ ...partie, boss: [...partie.boss, ajoute], pileBoss: reste });
+  },
+
+  /**
    * Troll saboteur (REVELATION) : aucun gain d'or pour ce combat
    * (`orBloque`, remis à false par `avancerPhase`). Les actions qui
    * rapportent de l'or restent jouables — la carte est bien activée et ses

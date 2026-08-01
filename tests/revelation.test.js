@@ -249,6 +249,31 @@ test('Troll saboteur (SPECIAL) : lève orBloque', () => {
   assert.equal(partie.orBloque, true);
 });
 
+test('Bébé troll (SPECIAL) : ajoute en fin de file le Boss du dessus de la réserve', () => {
+  const p = scenario([ennemi('bebe-troll', [{ type: 'SPECIAL', texte: 'ajouter une carte Boss' }])]);
+  const bossAvant = p.boss.length;
+  const attendu = p.pileBoss[0];
+
+  const { partie } = revelerAuxPortes(p, 0, [], creerRng(1));
+
+  assert.equal(partie.boss.length, bossAvant + 1);
+  assert.equal(partie.boss.at(-1)?.instanceId, attendu?.instanceId);
+  assert.equal(partie.pileBoss.length, p.pileBoss.length - 1);
+  assert.deepEqual(partie.boss.slice(0, bossAvant), p.boss); // les Boss prévus gardent leur ordre
+});
+
+test('Bébé troll (SPECIAL) : réserve vide, l’état est inchangé plutôt qu’une erreur', () => {
+  const p = scenario(
+    [ennemi('bebe-troll', [{ type: 'SPECIAL', texte: 'ajouter une carte Boss' }])],
+    { pileBoss: [] },
+  );
+
+  const { partie } = revelerAuxPortes(p, 0, [], creerRng(1));
+
+  assert.deepEqual(partie.boss, p.boss);
+  assert.deepEqual(partie.pileBoss, []);
+});
+
 test('index hors bornes lève une erreur', () => {
   const p = scenario([]);
   assert.throws(() => revelerAuxPortes(p, 0, [], creerRng(1)), /Aucun ennemi/);
