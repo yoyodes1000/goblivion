@@ -8,12 +8,22 @@
     <script type="module" src="/js/app.js"></script>
   </head>
   <body>
-    <main class="jeu">
+    <header class="bandeau">
       <h1>Goblivion</h1>
-      <!-- role="status" : les changements d'état sont annoncés aux lecteurs
-           d'écran. Placeholder tant que la vraie UI n'existe pas. -->
-      <p class="etat" id="etat-partie" role="status">Chargement…</p>
-      <p class="aide">(démo : cliquer pour avancer d'une phase)</p>
+      <p class="avertissement">
+        Portage personnel non officiel — plateau en lecture seule, aucune action n’est jouable.
+      </p>
+    </header>
+
+    <!-- Le plateau est bâti par ui/rendu.js : sa structure dépend de l'état
+         affiché (nombre de piles au marché, cases occupées…), la garder ici en
+         double finirait par diverger. -->
+    <main id="plateau" class="plateau">
+      <p>Chargement du plateau…</p>
     </main>
+
+    <footer class="bandeau">
+      <p>Graine de la partie : <code id="graine">—</code></p>
+    </footer>
   </body>
 </html>

@@ -1,34 +1,36 @@
-// Point d'entrée navigateur — démo : met en place une partie et laisse avancer
-// les phases au clic. La vraie interface (plateau SVG) remplacera cette démo.
+// Point d'entrée navigateur — met en place une partie et affiche son plateau.
+//
+// LECTURE SEULE : rien n'est jouable à ce stade (première tranche du chantier
+// interface). L'assemblage se limite donc à trois lignes utiles — mettre en
+// place, construire la vue, rendre — et toute la logique vit ailleurs :
+// le jeu dans `moteur/`, la traduction en `ui/vue.js`, le DOM en `ui/rendu.js`.
 
 import { creerRng } from './moteur/aleatoire.js';
 import { miseEnPlace } from './moteur/mise-en-place.js';
-import { avancerPhase } from './moteur/partie.js';
+import { construireVue } from './ui/vue.js';
+import { rendrePlateau } from './ui/rendu.js';
 
-/** Libellés lisibles des phases pour l'affichage. */
-const LIBELLE_PHASE = {
-  ENTRAINEMENT: 'Entraînement',
-  ENNEMI_AVANCE: "L'Ennemi Avance",
-  COMBAT: 'Combat',
-  COMBAT_BOSS: 'Combat des Boss',
-};
-
-const affichage = document.querySelector('#etat-partie');
-let partie = miseEnPlace({ roiReineId: 'margot', difficulte: 'NORMAL' }, creerRng(1));
-
-/** Met à jour l'écran avec un résumé de l'état courant. */
-function afficher() {
-  if (affichage) {
-    affichage.textContent =
-      `${partie.roiReine.nom} — Tour ${partie.tour} · ${LIBELLE_PHASE[partie.phase]} · ` +
-      `${partie.ressources} or · Château ${partie.chateau.length} · Boss ${partie.boss.length}`;
-  }
+/**
+ * Graine de la partie : celle passée en `?graine=N`, ou une au hasard. Elle est
+ * affichée pour qu'un plateau intéressant se retrouve à l'identique — l'aléa
+ * du moteur étant déterministe, la graine suffit à rejouer la mise en place.
+ * @returns {number}
+ */
+function graineDemandee() {
+  const brut = new URLSearchParams(window.location.search).get('graine');
+  const graine = Number(brut);
+  return brut !== null && brut.trim() !== '' && Number.isFinite(graine)
+    ? graine
+    : Math.floor(Math.random() * 1e6);
 }
 
-// Démo temporaire : un clic n'importe où avance d'une phase.
-document.querySelector('.jeu')?.addEventListener('click', () => {
-  partie = avancerPhase(partie);
-  afficher();
-});
+const racine = document.querySelector('#plateau');
+if (!(racine instanceof HTMLElement)) throw new Error('Élément #plateau introuvable');
 
-afficher();
+const graine = graineDemandee();
+const partie = miseEnPlace({ roiReineId: 'margot', difficulte: 'NORMAL' }, creerRng(graine));
+
+rendrePlateau(racine, construireVue(partie));
+
+const affichageGraine = document.querySelector('#graine');
+if (affichageGraine) affichageGraine.textContent = String(graine);
