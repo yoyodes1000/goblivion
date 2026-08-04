@@ -41,6 +41,7 @@ const LIBELLE_SYMBOLE = { HUMAIN: 'Paysan', OBJET: 'Objet' };
  * @property {boolean} forceVariable Force sans valeur imprimée (Soldat, Joker).
  * @property {number} jetonBonus
  * @property {boolean} activee       Déjà « pivotée » cette phase.
+ * @property {boolean} activable     Son action Pivoter est jouable maintenant.
  * @property {string[]} actions      Textes des actions de la carte.
  */
 
@@ -125,6 +126,9 @@ function forceAffichable(carte, partie, enJeu) {
  * @returns {CarteVue}
  */
 function carteVue(carte, partie, enJeu) {
+  const activee = partie.cartesActivees.includes(carte.instanceId);
+  const aPivoter = carte.type.actions.some((a) => a.declencheur === 'PIVOTER');
+
   return {
     instanceId: carte.instanceId,
     nom: carte.type.nom,
@@ -132,7 +136,10 @@ function carteVue(carte, partie, enJeu) {
     force: forceAffichable(carte, partie, enJeu),
     forceVariable: carte.type.force === 'VARIABLE',
     jetonBonus: carte.jetonBonus ?? 0,
-    activee: partie.cartesActivees.includes(carte.instanceId),
+    activee,
+    // Seules les cartes EN JEU se pivotent : à l'Hôpital ou en Garde du corps,
+    // une action Pivoter existe sur le carton mais n'est pas jouable.
+    activable: enJeu && aPivoter && !activee,
     // `texte` est optionnel dans les données : une action sans libellé est
     // omise, plutôt que d'afficher un trou à l'écran.
     actions: carte.type.actions.flatMap((a) => (a.texte ? [a.texte] : [])),

@@ -14,6 +14,7 @@
 /** @typedef {import('./vue.js').CarteVue} CarteVue */
 /** @typedef {import('./vue.js').EnnemiVue} EnnemiVue */
 /** @typedef {import('./vue.js').ZoneVue} ZoneVue */
+/** @typedef {import('./collecte.js').Demande} Demande */
 
 /**
  * Crée un élément, avec sa classe et son texte éventuels.
@@ -38,6 +39,24 @@ function element(balise, classe, texte) {
 function libelleForce(carte) {
   if (carte.force === null) return 'Force variable';
   return carte.forceVariable ? `Force ${carte.force} (variable)` : `Force ${carte.force}`;
+}
+
+/**
+ * Un bouton d'action. `type="button"` est explicite : dans un formulaire, le
+ * défaut d'un bouton est `submit`.
+ * @param {string} texte
+ * @param {string} action
+ * @param {Record<string, string>} [donnees]
+ * @returns {HTMLButtonElement}
+ */
+function bouton(texte, action, donnees = {}) {
+  const noeud = document.createElement('button');
+  noeud.type = 'button';
+  noeud.className = 'bouton';
+  noeud.textContent = texte;
+  noeud.dataset['action'] = action;
+  for (const [cle, valeur] of Object.entries(donnees)) noeud.dataset[cle] = valeur;
+  return noeud;
 }
 
 /**
@@ -77,6 +96,12 @@ function rendreCarte(carte) {
     const actions = element('ul', 'carte-actions');
     for (const texte of carte.actions) actions.append(element('li', undefined, texte));
     item.append(actions);
+  }
+
+  // Le bouton est distinct du contenu plutôt que d'englober la carte : un
+  // `button` n'accepte que du contenu de phrase, pas la liste des actions.
+  if (carte.activable) {
+    item.append(bouton('Activer', 'pivoter', { id: carte.instanceId }));
   }
 
   return item;
@@ -245,14 +270,109 @@ function rendreMarche(vue) {
 }
 
 /**
+ * Le refus du moteur, s'il y en a un. `role="alert"` : le message est annoncé
+ * dès son apparition, sans attendre que le joueur y arrive au clavier.
+ * @param {string} message
+ * @returns {HTMLElement}
+ */
+function rendreErreur(message) {
+  const noeud = element('p', 'erreur', message);
+  noeud.setAttribute('role', 'alert');
+  return noeud;
+}
+
+/**
+ * La question en cours, sous forme de vrai formulaire : `fieldset` et `legend`
+ * pour que la consigne soit annoncée avec chaque option, boutons radio quand il
+ * n'en faut qu'une, cases à cocher au-delà. Aucun état à tenir côté script —
+ * c'est le formulaire qui porte la sélection jusqu'à la validation.
+ * @param {Demande} demande
+ * @param {string} contexte   Ce qu'on est en train de jouer.
+ * @returns {HTMLElement}
+ */
+function rendreDemande(demande, contexte) {
+  const formulaire = document.createElement('form');
+  formulaire.className = 'demande';
+  formulaire.dataset['action'] = 'repondre';
+
+  const groupe = document.createElement('fieldset');
+  groupe.append(element('legend', undefined, `${contexte} — ${demande.libelle}`));
+
+  if (demande.nombre > 1) {
+    groupe.append(element('p', 'demande-consigne', `${demande.nombre} à désigner`));
+  }
+
+  const type = demande.nombre === 1 ? 'radio' : 'checkbox';
+  for (const option of demande.options) {
+    const etiquette = element('label', 'option');
+    const champ = document.createElement('input');
+    champ.type = type;
+    champ.name = 'valeur';
+    champ.value = option.valeur;
+    // Sur un groupe de radios, `required` empêche nativement la validation à
+    // vide — le cas d'erreur le plus courant — avec le message du navigateur,
+    // déjà accessible. Inapplicable aux cases à cocher, où il exigerait que
+    // CETTE case soit cochée : là, c'est le moteur qui reste le garde-fou.
+    if (type === 'radio') champ.required = true;
+    etiquette.append(champ, document.createTextNode(` ${option.libelle}`));
+    groupe.append(etiquette);
+  }
+
+  if (demande.options.length === 0) {
+    groupe.append(element('p', 'zone-vide', 'Aucune cible possible — annule l’action.'));
+  }
+
+  const valider = document.createElement('button');
+  valider.type = 'submit';
+  valider.className = 'bouton';
+  valider.textContent = 'Valider';
+
+  formulaire.append(groupe, valider, bouton('Annuler', 'annuler'));
+  return formulaire;
+}
+
+/**
+ * Les commandes qui ne dépendent d'aucune carte.
+ * @param {VuePartie} vue
+ * @param {boolean} actionOuverte
+ * @returns {HTMLElement}
+ */
+function rendreCommandes(vue, actionOuverte) {
+  const section = element('section', 'commandes');
+  section.append(element('h2', undefined, 'Commandes'));
+
+  const pouvoir = bouton(`Pouvoir : ${vue.roiReine}`, 'pouvoir');
+  pouvoir.disabled = !vue.pouvoirDisponible || actionOuverte;
+
+  const phase = bouton('Phase suivante', 'phase');
+  phase.disabled = actionOuverte;
+
+  section.append(phase, pouvoir);
+  return section;
+}
+
+/**
+ * Ce que l'écran doit montrer en plus du plateau : la question en cours et le
+ * dernier refus du moteur.
+ * @typedef {object} EtatEcran
+ * @property {import('./collecte.js').Demande | null} demande
+ * @property {string | null} erreur
+ * @property {string} [contexte]   Ce qu'on est en train de jouer.
+ */
+
+/**
  * Rend le plateau complet dans `racine`, en remplaçant son contenu.
  * @param {HTMLElement} racine
  * @param {VuePartie} vue
+ * @param {EtatEcran} ecran
  */
-export function rendrePlateau(racine, vue) {
+export function rendrePlateau(racine, vue, ecran) {
   const gardeDuCorps = vue.gardeDuCorps ? [rendreCarte(vue.gardeDuCorps)] : [];
 
   racine.replaceChildren(
+    ...(ecran.erreur ? [rendreErreur(ecran.erreur)] : []),
+    ...(ecran.demande ? [rendreDemande(ecran.demande, ecran.contexte ?? 'Action')] : []),
+    rendreCommandes(vue, ecran.demande !== null),
     rendreEntete(vue),
     rendreSectionListe(
       'Aux Portes',

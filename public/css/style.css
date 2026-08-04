@@ -23,6 +23,12 @@
   --texte-doux: light-dark(#55505c, #a9a3b5);
   --bordure: light-dark(#d8d2c6, #3a3746);
   --accent: light-dark(#7a4310, #e8b878);
+
+  /* Fond de bouton : assez sombre en clair, assez clair en sombre, pour que le
+     texte posé dessus (--fond-zone) garde un contraste ≥ 4,5:1. */
+  --accent-fort: light-dark(#6b3a0d, #d9a45e);
+  --texte-erreur: light-dark(#8a1c1c, #ffb4a8);
+  --fond-erreur: light-dark(#fdf0ee, #3a1f1d);
 }
 
 * {
@@ -213,4 +219,113 @@ code {
 .case-numero {
   font-size: 0.8125rem;
   color: var(--texte-doux);
+}
+
+/* ── Interaction ─────────────────────────────────────────────────────────── */
+
+.bouton {
+  align-self: start;
+  margin-block-start: 0.5rem;
+  padding: 0.375rem 0.875rem;
+  font: inherit;
+  font-size: 0.875rem;
+  color: var(--fond-zone);
+  background: var(--accent-fort);
+  border: 1px solid transparent;
+  border-radius: 0.375rem;
+  cursor: pointer;
+}
+
+.bouton:hover:not(:disabled) {
+  filter: brightness(1.15);
+}
+
+.bouton:disabled {
+  color: var(--texte-doux);
+  background: transparent;
+  border-color: var(--bordure);
+  cursor: not-allowed;
+}
+
+/* Focus toujours visible, et jamais uniquement par la couleur : le trait est
+   épais et décollé, lisible même sans percevoir la teinte. */
+:focus-visible {
+  outline: 3px solid var(--accent-fort);
+  outline-offset: 2px;
+}
+
+.commandes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  background: var(--fond-zone);
+  border: 1px solid var(--bordure);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  grid-column: 1 / -1;
+}
+
+.commandes h2 {
+  margin: 0 1rem 0 0;
+  font-size: 1rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--texte-doux);
+}
+
+.commandes .bouton {
+  margin-block-start: 0;
+}
+
+/* ── Question en cours ───────────────────────────────────────────────────── */
+
+.demande {
+  grid-column: 1 / -1;
+  background: var(--fond-zone);
+  border: 2px solid var(--accent-fort);
+  border-radius: 0.5rem;
+  padding: 1rem;
+}
+
+.demande fieldset {
+  margin: 0 0 0.75rem;
+  padding: 0;
+  border: 0;
+}
+
+.demande legend {
+  padding: 0;
+  font-weight: 600;
+  font-size: 1.0625rem;
+}
+
+.demande-consigne {
+  margin: 0.25rem 0 0.5rem;
+  color: var(--texte-doux);
+  font-size: 0.875rem;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+  cursor: pointer;
+}
+
+.demande .bouton {
+  margin-block-start: 0;
+  margin-inline-end: 0.5rem;
+}
+
+.erreur {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 0.75rem 1rem;
+  color: var(--texte-erreur);
+  background: var(--fond-erreur);
+  border: 1px solid currentcolor;
+  border-radius: 0.5rem;
+  font-weight: 600;
 }
