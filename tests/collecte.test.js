@@ -349,15 +349,15 @@ test('Yolo : deux choix d’affilée — la carte du Château, puis la case à r
   ]);
 });
 
-test('Brod : ne propose que les Objets du marché, désignés par id de type', () => {
-  const demande = prochaineDemande(demarrerCollectePouvoir(scenarioRoi('brod')));
+test('Brad : ne propose que les Objets du marché, désignés par id de type', () => {
+  const demande = prochaineDemande(demarrerCollectePouvoir(scenarioRoi('brad')));
   const objets = dores.filter((d) => d.symbole === 'OBJET').map((d) => d.id);
 
   assert.deepEqual([...(demande?.options.map((o) => o.valeur) ?? [])].sort(), [...objets].sort());
 });
 
-test('Brod : une pile épuisée disparaît des propositions', () => {
-  const p = scenarioRoi('brod');
+test('Brad : une pile épuisée disparaît des propositions', () => {
+  const p = scenarioRoi('brad');
   const [premierObjet] = dores.filter((d) => d.symbole === 'OBJET');
   const marcheDore = p.marcheDore.map((m) => (m.typeId === premierObjet?.id ? { ...m, restant: 0 } : m));
 

@@ -437,7 +437,7 @@ export const gestionnairesSpecial = {
  *
  * Hors du registre ci-dessus, et c'est délibéré : un PASSIF ne s'exécute pas,
  * et « l'arrivée en jeu » n'a aucun point de passage unique dans le moteur (on
- * arrive par la pioche, par Prêtre/Forgeron/Aimant, par Yolo, par Brod).
+ * arrive par la pioche, par Prêtre/Forgeron/Aimant, par Yolo, par Brad).
  * Instrumenter les cinq pour un seul cas coûterait plus que ça ne rapporte :
  * l'appelant déclenche donc la copie au bon moment — d'autant que le Paysan
  * copié est de toute façon un choix du joueur.
@@ -531,7 +531,7 @@ export const pouvoirsSpecial = {
   },
 
   /**
-   * Brod : obtient un Objet du marché et le pose en jeu (le coût, -3 or, est
+   * Brad : obtient un Objet du marché et le pose en jeu (le coût, -3 or, est
    * un effet OR séparé dans son pouvoir, pas géré ici). « Le marché » ne
    * peut désigner que `marcheDore` — seul marché du moteur — et « un Objet »
    * une carte Doré de `symbole: 'OBJET'` (Protecteur mécanique, Catapulte) :
@@ -542,18 +542,18 @@ export const pouvoirsSpecial = {
    * pas un `instanceId` : la carte n'existe pas encore en tant qu'instance
    * avant d'être obtenue.
    */
-  brod(partie, choix) {
+  brad(partie, choix) {
     const [doreId, ...reste] = choix?.cibles ?? [];
-    if (!doreId || reste.length > 0) throw new Error('Brod : une seule cible attendue');
+    if (!doreId || reste.length > 0) throw new Error('Brad : une seule cible attendue');
 
     const dore = dores.find((d) => d.id === doreId);
-    if (!dore) throw new Error(`Brod : carte Doré inconnue (${doreId})`);
-    if (dore.symbole !== 'OBJET') throw new Error('Brod : la cible doit être un Objet (symbole OBJET)');
+    if (!dore) throw new Error(`Brad : carte Doré inconnue (${doreId})`);
+    if (dore.symbole !== 'OBJET') throw new Error('Brad : la cible doit être un Objet (symbole OBJET)');
 
     const pile = partie.marcheDore.find((m) => m.typeId === doreId);
-    if (!pile || pile.restant <= 0) throw new Error(`Brod : aucun exemplaire de ${dore.nom} au marché`);
+    if (!pile || pile.restant <= 0) throw new Error(`Brad : aucun exemplaire de ${dore.nom} au marché`);
 
-    const instance = { instanceId: `${dore.id}#brod-t${partie.tour}`, type: dore };
+    const instance = { instanceId: `${dore.id}#brad-t${partie.tour}`, type: dore };
     const marcheDore = partie.marcheDore.map((m) => (m.typeId === doreId ? { ...m, restant: m.restant - 1 } : m));
     return Object.freeze({ ...partie, marcheDore, champDeBataille: [...partie.champDeBataille, instance] });
   },
@@ -588,7 +588,7 @@ export const pouvoirsSpecial = {
  *
  * `MARCHE` désigne les piles du marché Doré, et rend exceptionnellement des
  * **ids de type** plutôt que des `instanceId` : la carte n'existe pas encore en
- * tant qu'instance avant d'être obtenue (voir le gestionnaire de Brod).
+ * tant qu'instance avant d'être obtenue (voir le gestionnaire de Brad).
  * @typedef {'CHAMP' | 'HOPITAL' | 'ENNEMIS' | 'CHATEAU' | 'MARCHE' | 'ACTIVEES'} Source
  */
 
@@ -672,7 +672,7 @@ export const besoinsPouvoir = {
     source: 'CHATEAU', nombre: 1,
     libelle: 'Choisis la carte du Château à poser en jeu',
   },
-  brod: {
+  brad: {
     source: 'MARCHE', nombre: 1, symbole: 'OBJET',
     libelle: 'Choisis l’Objet du marché à obtenir (coût déjà déduit)',
   },

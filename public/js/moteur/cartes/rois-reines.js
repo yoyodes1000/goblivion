@@ -33,7 +33,7 @@ export const roisReines = Object.freeze([
         { type: "PIOCHER", valeur: 2 }],
       texte: "Mélanger l'Hôpital à ton Château, puis piocher 2" } },
 
-  { id: "brod", nom: "Roi Brod l'ingénieur", ressourcesDepart: 20, gardeDuCorps: "batisseur",
+  { id: "brad", nom: "Roi Brad l'ingénieux", ressourcesDepart: 20, gardeDuCorps: "batisseur",
     pouvoir: { declencheur: "POUVOIR", effets: [
         { type: "SPECIAL", texte: "obtenir un Objet du marché et le poser en jeu" },
         { type: "OR", valeur: -3 }],
