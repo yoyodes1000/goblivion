@@ -345,12 +345,12 @@ export const gestionnairesSpecial = {
   },
 
   /**
-   * Horde Gobelin (REVELATION) : envoie un Paysan désigné à l'Hôpital.
+   * Horde de Gobelins (REVELATION) : envoie un Paysan désigné à l'Hôpital.
    */
-  'horde-gobelin'(partie, choix) {
+  'horde-de-gobelins'(partie, choix) {
     const [cible, ...reste] = choix?.cibles ?? [];
-    if (!cible || reste.length > 0) throw new Error('Horde Gobelin : une seule cible attendue');
-    return envoyerHopital(partie, trouverPaysanCible(partie, cible, 'Horde Gobelin'));
+    if (!cible || reste.length > 0) throw new Error('Horde de Gobelins : une seule cible attendue');
+    return envoyerHopital(partie, trouverPaysanCible(partie, cible, 'Horde de Gobelins'));
   },
 
   'gobelin-vachelier': envoyerPaysanLePlusFortHopital('Gobelin vachelier'),
@@ -625,7 +625,7 @@ export const besoinsSpecial = {
     source: 'CHAMP', nombre: 1,
     libelle: 'Choisis la carte dont doubler le jeton bonus',
   },
-  'horde-gobelin': {
+  'horde-de-gobelins': {
     source: 'CHAMP', nombre: 1, symbole: 'HUMAIN',
     libelle: 'Choisis le Paysan envoyé à l’Hôpital',
   },

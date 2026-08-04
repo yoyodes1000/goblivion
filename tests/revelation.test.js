@@ -79,10 +79,10 @@ test('Trollolole : détruit la prochaine carte du Château (gestionnaire SPECIAL
   assert.equal(partie.chateau.length, chateauAvant - 1);
 });
 
-test('Horde Gobelin (SPECIAL) : envoie le Paysan désigné à l’Hôpital', () => {
+test('Horde de Gobelins (SPECIAL) : envoie le Paysan désigné à l’Hôpital', () => {
   const paysan = { instanceId: 'paysan#x', type: /** @type {any} */ ({ id: 'paysan', force: 1, symbole: 'HUMAIN' }) };
   const p = scenario(
-    [ennemi('horde-gobelin', [{ type: 'SPECIAL', texte: 'envoyer un Paysan à l’Hôpital' }])],
+    [ennemi('horde-de-gobelins', [{ type: 'SPECIAL', texte: 'envoyer un Paysan à l’Hôpital' }])],
     { champDeBataille: [paysan] },
   );
 
@@ -92,10 +92,10 @@ test('Horde Gobelin (SPECIAL) : envoie le Paysan désigné à l’Hôpital', () 
   assert.ok(partie.hopital.some((c) => c.instanceId === 'paysan#x'));
 });
 
-test('Horde Gobelin (SPECIAL) : refuse une cible qui n’est pas un Paysan (symbole HUMAIN)', () => {
+test('Horde de Gobelins (SPECIAL) : refuse une cible qui n’est pas un Paysan (symbole HUMAIN)', () => {
   const objet = { instanceId: 'objet#x', type: /** @type {any} */ ({ id: 'objet', force: 1, symbole: 'OBJET' }) };
   const p = scenario(
-    [ennemi('horde-gobelin', [{ type: 'SPECIAL', texte: 'envoyer un Paysan à l’Hôpital' }])],
+    [ennemi('horde-de-gobelins', [{ type: 'SPECIAL', texte: 'envoyer un Paysan à l’Hôpital' }])],
     { champDeBataille: [objet] },
   );
 

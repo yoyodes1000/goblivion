@@ -87,7 +87,7 @@ export const ennemis = Object.freeze([
     recompense: { nom: "Sac à rats", symbole: "OBJET", force: -1, actions: [
       { declencheur: "TESTAMENT", effets: [{ type: "OR", valeur: 3 }], texte: "Testament : +3 or" }] } },
 
-  { id: "horde-gobelin", nom: "Horde Gobelin", niveau: "UNE_EPEE", force: 5, cartes: 3, exemplaires: 1,
+  { id: "horde-de-gobelins", nom: "Horde de Gobelins", niveau: "UNE_EPEE", force: 5, cartes: 3, exemplaires: 1,
     actionsEnnemi: [
       { declencheur: "REVELATION", effets: [{ type: "SPECIAL", texte: "envoyer un Paysan (HUMAIN) à l'Hôpital" }],
         texte: "À la révélation : envoie un Paysan à l'Hôpital" }],
