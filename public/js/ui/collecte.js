@@ -176,7 +176,7 @@ function optionsEnnemis(partie, besoin) {
 /**
  * Les piles du marché encore fournies. La `valeur` rendue ici est un id de
  * TYPE, pas un `instanceId` : la carte n'existe pas encore en tant qu'instance
- * avant d'être obtenue, et le gestionnaire de Brod l'attend ainsi.
+ * avant d'être obtenue, et le gestionnaire de Brad l'attend ainsi.
  * @param {Partie} partie
  * @param {Besoin} besoin
  * @returns {Option[]}

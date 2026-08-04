@@ -119,8 +119,8 @@ test('Yolo (SPECIAL) : choisit une carte du Château et la pose en jeu, puis vis
   assert.ok(partie.champDeBataille.some((c) => c.instanceId === cible.instanceId));
 });
 
-test('Brod (SPECIAL) : obtient un Objet du marché (Doré) et le pose en jeu, pour -3 or', () => {
-  const p = scenario('brod');
+test('Brad (SPECIAL) : obtient un Objet du marché (Doré) et le pose en jeu, pour -3 or', () => {
+  const p = scenario('brad');
   const { partie } = activerPouvoir(p, [{ cibles: ['catapulte'] }, undefined], creerRng(1));
 
   assert.ok(partie.champDeBataille.some((c) => c.type.id === 'catapulte'));
@@ -129,8 +129,8 @@ test('Brod (SPECIAL) : obtient un Objet du marché (Doré) et le pose en jeu, po
   assert.equal(partie.marcheDore.find((m) => m.typeId === 'catapulte')?.restant, restantAvant - 1);
 });
 
-test('Brod (SPECIAL) : refuse une carte Doré qui n’est pas un Objet (symbole OBJET)', () => {
-  const p = scenario('brod');
+test('Brad (SPECIAL) : refuse une carte Doré qui n’est pas un Objet (symbole OBJET)', () => {
+  const p = scenario('brad');
   assert.throws(
     () => activerPouvoir(p, [{ cibles: ['bourreau'] }, undefined], creerRng(1)),
     /doit être un Objet/,
