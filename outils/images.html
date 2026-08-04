@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Goblivion — conversion des scans</title>
+    <link rel="stylesheet" href="/css/style.css" />
+    <style>
+      .outil { max-width: 60rem; margin-inline: auto; padding: 1rem; display: grid; gap: 1rem; }
+      .journal { max-height: 24rem; overflow: auto; font-family: ui-monospace, monospace; font-size: 0.8125rem; }
+      .journal p { margin: 0.125rem 0; }
+      .ko { color: var(--texte-erreur); font-weight: 600; }
+      .renomme { color: var(--accent); }
+    </style>
+  </head>
+  <body>
+    <header class="bandeau">
+      <h1>Conversion des scans</h1>
+      <p>
+        Page de développement. Elle lit un dossier de scans PNG et écrit, dans un autre dossier,
+        des WebP redimensionnés pour l’affichage. Les originaux ne sont jamais modifiés.
+      </p>
+    </header>
+
+    <main class="outil">
+      <section class="zone">
+        <h2>Réglages</h2>
+        <dl class="resume">
+          <dt><label for="largeur">Côté le plus long</label></dt>
+          <dd><input id="largeur" type="number" value="600" min="100" max="2000" step="50" /> px</dd>
+          <dt><label for="qualite">Qualité WebP</label></dt>
+          <dd><input id="qualite" type="number" value="82" min="40" max="100" step="1" /> %</dd>
+        </dl>
+        <p class="zone-vide">
+          Les noms sont normalisés vers les identifiants du moteur : minuscules, sans accent,
+          tirets bas convertis en tirets. Un fichier dont le nom ne correspond à aucune carte
+          connue est signalé plutôt que converti à l’aveugle.
+        </p>
+        <button id="lancer" class="bouton" type="button">Choisir le dossier source…</button>
+      </section>
+
+      <section class="zone">
+        <h2>Journal</h2>
+        <div id="journal" class="journal" role="log" aria-live="polite">
+          <p class="zone-vide">En attente.</p>
+        </div>
+      </section>
+    </main>
+
+    <script type="module">
+      import { paysansBase, dores, ennemis, bosses, roisReines } from '/js/moteur/cartes/index.js';
+
+      /** Normalise un nom de fichier vers la forme des identifiants du moteur. */
+      const normaliser = (nom) =>
+        nom
+          .replace(/\.[^.]+$/, '')
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[̀-ͯ]/g, '')
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-+|-+$/g, '');
+
+      /** Tous les noms de fichiers que l'affichage saura utiliser. */
+      const attendus = new Set([
+        ...paysansBase.map((c) => c.id),
+        ...dores.map((c) => c.id),
+        ...ennemis.map((c) => c.id),
+        ...ennemis.filter((e) => e.recompense).map((e) => normaliser(e.recompense.nom)),
+        ...bosses.map((c) => c.id),
+        ...roisReines.map((c) => c.id),
+      ]);
+
+      /**
+       * Rattache un nom normalisé à un identifiant connu.
+       *
+       * Les dos de cartes passent tels quels : ils n'appartiennent à aucune
+       * carte, et une règle vaut mieux qu'une liste à tenir à jour.
+       *
+       * Sinon, accepte le préfixe — les rôles sont scannés sous leur nom
+       * complet (« bella-l-erudite ») alors que le moteur ne connaît que
+       * « bella ». On retient le préfixe le PLUS LONG : `slip` et `slip-sale`
+       * sont deux récompenses distinctes, et le premier ne doit pas capturer
+       * les fichiers du second.
+       */
+      function resoudre(nom) {
+        if (nom.startsWith('dos-')) return { id: nom, renomme: false };
+        if (attendus.has(nom)) return { id: nom, renomme: false };
+
+        let meilleur = null;
+        for (const id of attendus) {
+          if (nom.startsWith(`${id}-`) && (!meilleur || id.length > meilleur.length)) meilleur = id;
+        }
+        return meilleur ? { id: meilleur, renomme: true } : null;
+      }
+
+      const journal = document.querySelector('#journal');
+      let premier = true;
+      function noter(texte, classe) {
+        if (premier) { journal.replaceChildren(); premier = false; }
+        const ligne = document.createElement('p');
+        if (classe) ligne.className = classe;
+        ligne.textContent = texte;
+        journal.append(ligne);
+        journal.scrollTop = journal.scrollHeight;
+      }
+
+      /** Redimensionne et réencode une image en WebP. */
+      async function convertir(fichier, largeurMax, qualite) {
+        const image = await createImageBitmap(await fichier.getFile());
+        const facteur = Math.min(1, largeurMax / Math.max(image.width, image.height));
+
+        const toile = document.createElement('canvas');
+        toile.width = Math.round(image.width * facteur);
+        toile.height = Math.round(image.height * facteur);
+        toile.getContext('2d').drawImage(image, 0, 0, toile.width, toile.height);
+        image.close();
+
+        return new Promise((resoudre) => toile.toBlob(resoudre, 'image/webp', qualite));
+      }
+
+      document.querySelector('#lancer').addEventListener('click', async () => {
+        if (!window.showDirectoryPicker) {
+          noter('Ce navigateur ne sait pas ouvrir un dossier (Chrome ou Edge requis).', 'ko');
+          return;
+        }
+
+        const largeurMax = Number(document.querySelector('#largeur').value);
+        const qualite = Number(document.querySelector('#qualite').value) / 100;
+
+        let source, destination;
+        try {
+          source = await window.showDirectoryPicker({ id: 'scans' });
+          noter('Choisis maintenant le dossier de DESTINATION.');
+          destination = await window.showDirectoryPicker({ id: 'sortie', mode: 'readwrite' });
+        } catch {
+          noter('Annulé.', 'ko');
+          return;
+        }
+
+        let convertis = 0, inconnus = 0, octets = 0;
+
+        for await (const entree of source.values()) {
+          if (entree.kind !== 'file' || !/\.(png|jpe?g|webp)$/i.test(entree.name)) continue;
+
+          const nom = normaliser(entree.name);
+          const resolu = resoudre(nom);
+          if (!resolu) {
+            noter(`INCONNU  ${entree.name}  →  « ${nom} » ne correspond à aucune carte`, 'ko');
+            inconnus += 1;
+            continue;
+          }
+
+          const blob = await convertir(entree, largeurMax, qualite);
+          const sortie = await destination.getFileHandle(`${resolu.id}.webp`, { create: true });
+          const flux = await sortie.createWritable();
+          await flux.write(blob);
+          await flux.close();
+
+          convertis += 1;
+          octets += blob.size;
+          const detail = `${entree.name} → ${resolu.id}.webp  (${Math.round(blob.size / 1024)} Ko)`;
+          noter(resolu.renomme ? `RENOMMÉ  ${detail}` : `OK       ${detail}`, resolu.renomme ? 'renomme' : undefined);
+        }
+
+        noter('');
+        noter(`Terminé : ${convertis} converties, ${inconnus} non reconnues, ${(octets / 1e6).toFixed(1)} Mo au total.`);
+      });
+    </script>
+  </body>
+</html>

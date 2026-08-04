@@ -4,6 +4,13 @@
 docs/regles/**/*.pdf
 docs/regles/**/*.txt
 
+# --- Scans de cartes : sous droits (Goblivion Games), usage LOCAL uniquement ---
+# Chacun fournit ses propres scans du jeu qu'il possède (voir le README).
+# Aucune image de carte ne doit entrer dans l'historique : une fois committée,
+# elle y reste, et un dépôt public l'exposerait définitivement.
+public/images/cartes/
+docs/plateaux/
+
 # --- Dépendances ---
 node_modules/
 

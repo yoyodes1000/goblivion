@@ -8,6 +8,14 @@ import { fileURLToPath } from 'node:url';
 import { extname, join, normalize } from 'node:path';
 
 const RACINE = fileURLToPath(new URL('../public/', import.meta.url));
+
+// Les pages d'outillage vivent avec l'outillage, pas dans le dossier de
+// l'application. Elles sont tout de même servies par ce serveur : l'API qui
+// leur permet de lire un dossier exige un contexte sécurisé, ce qu'un fichier
+// ouvert directement (file://) ne garantit pas — localhost, si.
+const OUTILS = fileURLToPath(new URL('./', import.meta.url));
+const PREFIXE_OUTILS = '/outils/';
+
 const PORT = Number(process.env['PORT'] ?? 8080);
 
 /**
@@ -32,9 +40,13 @@ const serveur = createServer(async (requete, reponse) => {
     let chemin = decodeURIComponent(url.pathname);
     if (chemin.endsWith('/')) chemin += 'index.html';
 
-    // Empêche toute remontée hors de la racine (path traversal).
-    const cible = normalize(join(RACINE, chemin));
-    if (!cible.startsWith(RACINE)) {
+    const versOutils = chemin.startsWith(PREFIXE_OUTILS);
+    const racine = versOutils ? OUTILS : RACINE;
+    const relatif = versOutils ? chemin.slice(PREFIXE_OUTILS.length) : chemin;
+
+    // Empêche toute remontée hors de la racine choisie (path traversal).
+    const cible = normalize(join(racine, relatif));
+    if (!cible.startsWith(racine)) {
       reponse.writeHead(403).end('403 Interdit');
       return;
     }
