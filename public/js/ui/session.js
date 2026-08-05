@@ -16,6 +16,14 @@ import { passerALaPhaseSuivante } from '../moteur/orchestration.js';
 import { activerPivoter } from '../moteur/pivoter.js';
 import { activerPouvoir } from '../moteur/pouvoir.js';
 import {
+  obstacleEntrainement,
+  piocherPourEntrainement,
+  coutEntrainement,
+  finaliserEntrainement,
+  renoncerEntrainement,
+} from '../moteur/entrainement.js';
+import { dores } from '../moteur/cartes/index.js';
+import {
   demarrerCollecte,
   demarrerCollectePouvoir,
   prochaineDemande,
@@ -29,11 +37,18 @@ import {
 
 /**
  * L'action dont on est en train de recueillir les choix.
+ *
+ * Deux natures s'y côtoient. PIVOTER et POUVOIR jouent des EFFETS de carte :
+ * leurs questions sortent d'une collecte, qui sait les enchaîner et les
+ * imbriquer. ENTRAINEMENT, lui, n'exécute aucun effet — il demande une OPTION,
+ * la carte à sacrifier, et sa question est donc fabriquée telle quelle.
  * @typedef {object} ActionEnCours
- * @property {'PIVOTER' | 'POUVOIR'} genre
+ * @property {'PIVOTER' | 'POUVOIR' | 'ENTRAINEMENT'} genre
  * @property {string} libelle              Ce qu'on est en train de jouer, pour l'afficher.
  * @property {string} [instanceId]         La carte activée (PIVOTER seulement).
- * @property {EtatCollecte} collecte
+ * @property {string} [doreId]             La Doré convoitée (ENTRAINEMENT seulement).
+ * @property {EtatCollecte} [collecte]     Absente pour un entraînement.
+ * @property {Demande} [demande]           Question fabriquée (ENTRAINEMENT seulement).
  */
 
 /**
@@ -57,7 +72,9 @@ export function nouvelleSession(partie) {
  * @returns {Demande | null}
  */
 export function demandeCourante(session) {
-  return session.enCours ? prochaineDemande(session.enCours.collecte) : null;
+  const action = session.enCours;
+  if (!action) return null;
+  return action.collecte ? prochaineDemande(action.collecte) : (action.demande ?? null);
 }
 
 /**
@@ -70,6 +87,7 @@ export function demandeCourante(session) {
  */
 function executer(session, action, rng) {
   try {
+    if (!action.collecte) throw new Error('Action sans effets à exécuter');
     const choix = choixFinal(action.collecte);
     const { partie } =
       action.genre === 'POUVOIR'
@@ -78,12 +96,17 @@ function executer(session, action, rng) {
 
     return Object.freeze({ partie, enCours: null, erreur: null });
   } catch (erreur) {
-    return Object.freeze({
-      ...session,
-      enCours: null,
-      erreur: erreur instanceof Error ? erreur.message : String(erreur),
-    });
+    return Object.freeze({ ...session, enCours: null, erreur: messageDe(erreur) });
   }
+}
+
+/**
+ * Le message d'un refus du moteur, quelle qu'en soit la forme.
+ * @param {unknown} erreur
+ * @returns {string}
+ */
+function messageDe(erreur) {
+  return erreur instanceof Error ? erreur.message : String(erreur);
 }
 
 /**
@@ -95,7 +118,7 @@ function executer(session, action, rng) {
  * @returns {Session}
  */
 function ouvrir(session, action, rng) {
-  if (prochaineDemande(action.collecte)) {
+  if (action.collecte && prochaineDemande(action.collecte)) {
     return Object.freeze({ ...session, enCours: action, erreur: null });
   }
   return executer(session, action, rng);
@@ -162,6 +185,51 @@ export function commencerPouvoir(session, rng) {
 }
 
 /**
+ * Ouvre un entraînement : pioche aussitôt, puis demande quelle carte sacrifier.
+ *
+ * La pioche est ENGAGÉE dès ce moment — elle est faite, elle ne se reprend pas.
+ * C'est fidèle aux règles : on pioche, puis on décide de poursuivre ou non.
+ * Renoncer (voir `annulerAction`) laisse donc les cartes en jeu, prêtes pour le
+ * combat, au prix de la Doré convoitée.
+ * @param {Session} session
+ * @param {string} doreId
+ * @param {() => number} rng
+ * @returns {Session}
+ */
+export function commencerEntrainement(session, doreId, rng) {
+  const obstacle = obstacleEntrainement(session.partie, doreId);
+  if (obstacle) return Object.freeze({ ...session, erreur: obstacle });
+
+  const dore = dores.find((d) => d.id === doreId);
+  if (!dore) return Object.freeze({ ...session, erreur: `Carte Doré inconnue : ${doreId}` });
+
+  const { partie } = piocherPourEntrainement(session.partie, doreId, rng);
+  const cout = coutEntrainement(partie, doreId);
+  const echange = dore.entrainement.echange;
+
+  const options = partie.champDeBataille
+    .filter((c) => c.type.symbole === echange)
+    .map((c) => ({ valeur: c.instanceId, libelle: c.type.nom }));
+
+  const prix = cout === 0 ? 'cible atteinte, rien à payer' : `${cout} or à payer`;
+
+  /** @type {ActionEnCours} */
+  const enCours = {
+    genre: 'ENTRAINEMENT',
+    libelle: `Entraîner ${dore.nom}`,
+    doreId,
+    demande: {
+      genre: 'CARTES',
+      libelle: `Choisis la carte à sacrifier (${echange === 'HUMAIN' ? 'Paysan' : 'Objet'}) — ${prix}`,
+      nombre: 1,
+      options,
+    },
+  };
+
+  return Object.freeze({ partie, erreur: null, enCours });
+}
+
+/**
  * Enregistre la réponse à la demande en cours, et exécute l'action s'il ne
  * reste plus rien à saisir.
  * @param {Session} session
@@ -170,19 +238,48 @@ export function commencerPouvoir(session, rng) {
  * @returns {Session}
  */
 export function repondreDemande(session, valeurs, rng) {
-  if (!session.enCours) return Object.freeze({ ...session, erreur: 'Aucune action en cours' });
+  const action = session.enCours;
+  if (!action) return Object.freeze({ ...session, erreur: 'Aucune action en cours' });
 
-  const action = { ...session.enCours, collecte: repondre(session.enCours.collecte, valeurs) };
-  return ouvrir(session, action, rng);
+  // L'entraînement n'a qu'une question : y répondre le conclut.
+  if (action.genre === 'ENTRAINEMENT') {
+    try {
+      const [sacrifieInstanceId] = valeurs;
+      const { partie } = finaliserEntrainement(
+        session.partie,
+        { doreId: action.doreId ?? '', sacrifieInstanceId: sacrifieInstanceId ?? '' },
+        rng,
+      );
+      return Object.freeze({ partie, enCours: null, erreur: null });
+    } catch (erreur) {
+      // La question reste ouverte : un refus (mauvais symbole, or insuffisant)
+      // doit pouvoir se corriger en désignant une autre carte, pas coûter
+      // l'entraînement du tour.
+      return Object.freeze({ ...session, erreur: messageDe(erreur) });
+    }
+  }
+
+  if (!action.collecte) return Object.freeze({ ...session, erreur: 'Aucune saisie attendue' });
+  return ouvrir(session, { ...action, collecte: repondre(action.collecte, valeurs) }, rng);
 }
 
 /**
- * Abandonne l'action en cours. La partie n'a pas bougé : rien n'a encore été
- * remis au moteur, la collecte n'ayant aucun effet de bord.
+ * Abandonne l'action en cours.
+ *
+ * Pour une action de carte, la partie n'a pas bougé : la collecte n'a aucun
+ * effet de bord. Pour un entraînement, la pioche est déjà faite et le reste —
+ * c'est l'arrêt que prévoient les règles, et il garde les cartes en jeu.
  * @param {Session} session
  * @returns {Session}
  */
 export function annulerAction(session) {
+  if (session.enCours?.genre === 'ENTRAINEMENT') {
+    return Object.freeze({
+      partie: renoncerEntrainement(session.partie),
+      enCours: null,
+      erreur: null,
+    });
+  }
   return Object.freeze({ ...session, enCours: null, erreur: null });
 }
 

@@ -302,6 +302,9 @@ function rendreMarche(vue) {
       ),
       element('span', 'carte-restant', `${pile.restant} en réserve`),
     );
+    if (pile.entrainable) {
+      item.append(bouton('Entraîner', 'entrainer', { dore: pile.typeId }));
+    }
     liste.append(item);
   }
 
