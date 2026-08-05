@@ -125,6 +125,7 @@ const DOS_ENNEMI = 'dos-ennemi';
  * @property {boolean} forceVariable
  * @property {string} niveau
  * @property {boolean} entrainable   Peut être entraînée maintenant.
+ * @property {ImageVue} image        Le scan de la carte convoitée.
  */
 
 /**
@@ -284,6 +285,9 @@ function pileMarcheVue(pile, partie) {
     forceVariable: dore.force === 'VARIABLE',
     niveau: dore.niveau === 'UNE_EPEE' ? '1 épée' : '2 épées',
     entrainable: issuePartie(partie) === null && obstacleEntrainement(partie, pile.typeId) === null,
+    // Une Doré a son propre scan, recto entier : c'est une carte à part, pas la
+    // moitié d'un carton Ennemi/Objet.
+    image: { fichier: dore.id, moitie: null },
   };
 }
 
