@@ -480,3 +480,34 @@ test('Joker : refuse une cible absente du Champ de bataille', () => {
   const p = scenario([joker()]);
   assert.throws(() => copierAvecJoker(p, 'joker#x', 'fantome#x'), /cible absente/);
 });
+
+// ── ENNEMI_AVANCE : le TESTAMENT du Traître ─────────────────────────────────
+
+/** @returns {import('../public/js/moteur/partie.js').InstanceAlliee} */
+function traitre() {
+  return carteAvecTestament('traitre', [{ type: 'ENNEMI_AVANCE' }]);
+}
+
+test('détruire un Traître fait avancer l’ennemi, au lieu de lever une erreur', () => {
+  const p = scenario([traitre()]);
+  const { partie } = executerEffets(p, [{ type: 'DETRUIRE_JEU' }], [{ cibles: ['traitre#x'] }], creerRng(1));
+
+  assert.equal(partie.pisteEnnemi.filter(Boolean).length, 1);
+  assert.equal(partie.pileEnnemi.length, p.pileEnnemi.length - 1);
+  assert.equal(partie.champDeBataille.length, 0);
+});
+
+test('détruire un Traître à l’Hôpital le fait avancer aussi (Bourreau, Enfant)', () => {
+  const p = scenario([], [traitre()]);
+  const { partie } = executerEffets(p, [{ type: 'DETRUIRE_HOPITAL' }], [{ cibles: ['traitre#x'] }], creerRng(1));
+
+  assert.equal(partie.pisteEnnemi.filter(Boolean).length, 1);
+});
+
+test('pendant le combat des Boss, le TESTAMENT du Traître ne fait rien (FAQ p.18)', () => {
+  const p = { ...scenario([traitre()]), phase: /** @type {any} */ ('COMBAT_BOSS') };
+  const { partie } = executerEffets(p, [{ type: 'DETRUIRE_JEU' }], [{ cibles: ['traitre#x'] }], creerRng(1));
+
+  assert.deepEqual(partie.pisteEnnemi, p.pisteEnnemi);
+  assert.equal(partie.pileEnnemi.length, p.pileEnnemi.length);
+});
