@@ -379,6 +379,31 @@ function rendreDemande(demande, contexte) {
 }
 
 /**
+ * L'annonce de fin de partie. `role="status"` : annoncée sans voler le focus,
+ * là où `alert` interromprait la lecture du plateau final.
+ * @param {'VICTOIRE' | 'DEFAITE'} issue
+ * @returns {HTMLElement}
+ */
+function rendreIssue(issue) {
+  const section = element('section', 'issue');
+  section.dataset['issue'] = issue.toLowerCase();
+  section.setAttribute('role', 'status');
+
+  const gagne = issue === 'VICTOIRE';
+  section.append(
+    element('h2', undefined, gagne ? 'Victoire' : 'Défaite'),
+    element(
+      'p',
+      undefined,
+      gagne
+        ? 'Tous les Boss sont tombés : la paix revient au village.'
+        : 'Les ressources du château sont épuisées : l’ennemi a percé la défense.',
+    ),
+  );
+  return section;
+}
+
+/**
  * Les commandes qui ne dépendent d'aucune carte.
  * @param {VuePartie} vue
  * @param {boolean} actionOuverte
@@ -431,10 +456,15 @@ function rendreCommandes(vue, actionOuverte) {
 export function rendrePlateau(racine, vue, ecran) {
   const gardeDuCorps = vue.gardeDuCorps ? [rendreCarte(vue.gardeDuCorps)] : [];
 
+  // Partie finie : le plateau reste lisible, mais plus aucune commande — ni
+  // question en suspens, qui n'aurait plus de réponse à donner.
+  const termine = vue.issue !== null;
+
   racine.replaceChildren(
+    ...(vue.issue ? [rendreIssue(vue.issue)] : []),
     ...(ecran.erreur ? [rendreErreur(ecran.erreur)] : []),
-    ...(ecran.demande ? [rendreDemande(ecran.demande, ecran.contexte ?? 'Action')] : []),
-    rendreCommandes(vue, ecran.demande !== null),
+    ...(ecran.demande && !termine ? [rendreDemande(ecran.demande, ecran.contexte ?? 'Action')] : []),
+    ...(termine ? [] : [rendreCommandes(vue, ecran.demande !== null)]),
     rendreEntete(vue),
     rendreSectionListe(
       'Aux Portes',

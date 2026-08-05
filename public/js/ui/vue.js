@@ -14,6 +14,7 @@ import { forceCarte, forceTotale } from '../moteur/force.js';
 import { forceEnnemi, forceEnnemisPortes, slugifier } from '../moteur/combat.js';
 import { modificateursDeForce } from '../moteur/combat-boss.js';
 import { obstacleEntrainement } from '../moteur/entrainement.js';
+import { issuePartie } from '../moteur/orchestration.js';
 import { paysansBase, dores, ennemis } from '../moteur/cartes/index.js';
 
 /** @typedef {import('../moteur/partie.js').Partie} Partie */
@@ -119,6 +120,7 @@ const DOS_ENNEMI = 'dos-ennemi';
 /**
  * Le modèle complet d'affichage d'un état de partie.
  * @typedef {object} VuePartie
+ * @property {'VICTOIRE' | 'DEFAITE' | null} issue   Non nulle, la partie est finie.
  * @property {string} roiReine
  * @property {ImageVue} imageRoiReine
  * @property {number} tour
@@ -177,6 +179,7 @@ function imageDeCarte(carte) {
 function carteVue(carte, partie, enJeu) {
   const activee = partie.cartesActivees.includes(carte.instanceId);
   const aPivoter = carte.type.actions.some((a) => a.declencheur === 'PIVOTER');
+  const enCours = issuePartie(partie) === null;
 
   return {
     instanceId: carte.instanceId,
@@ -187,8 +190,9 @@ function carteVue(carte, partie, enJeu) {
     jetonBonus: carte.jetonBonus ?? 0,
     activee,
     // Seules les cartes EN JEU se pivotent : à l'Hôpital ou en Garde du corps,
-    // une action Pivoter existe sur le carton mais n'est pas jouable.
-    activable: enJeu && aPivoter && !activee,
+    // une action Pivoter existe sur le carton mais n'est pas jouable. Et plus
+    // rien ne l'est une fois la partie finie.
+    activable: enCours && enJeu && aPivoter && !activee,
     // `texte` est optionnel dans les données : une action sans libellé est
     // omise, plutôt que d'afficher un trou à l'écran.
     actions: carte.type.actions.flatMap((a) => (a.texte ? [a.texte] : [])),
@@ -241,7 +245,7 @@ function pileMarcheVue(pile, partie) {
     force: typeof dore.force === 'number' ? dore.force : null,
     forceVariable: dore.force === 'VARIABLE',
     niveau: dore.niveau === 'UNE_EPEE' ? '1 épée' : '2 épées',
-    entrainable: obstacleEntrainement(partie, pile.typeId) === null,
+    entrainable: issuePartie(partie) === null && obstacleEntrainement(partie, pile.typeId) === null,
   };
 }
 
@@ -252,6 +256,7 @@ function pileMarcheVue(pile, partie) {
  */
 export function construireVue(partie) {
   return {
+    issue: issuePartie(partie),
     roiReine: partie.roiReine.nom,
     imageRoiReine: { fichier: partie.roiReine.id, moitie: null },
     tour: partie.tour,

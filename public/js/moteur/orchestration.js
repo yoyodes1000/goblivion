@@ -10,10 +10,26 @@
 // suivante) est piloté par le joueur — donc par l'UI, pas par le moteur.
 // Mais ce qu'une phase déclenche d'elle-même est une règle du jeu, et vit ici.
 
-import { avancerPhase, reinitialiserEtatsDePhase } from './partie.js';
+import { avancerPhase, reinitialiserEtatsDePhase, estPerdue } from './partie.js';
 import { avancerEnnemis, pisteEtPileVides } from './ennemi-avance.js';
+import { tousBossVaincus } from './combat-boss.js';
 
 /** @typedef {import('./partie.js').Partie} Partie */
+
+/**
+ * L'issue de la partie, ou `null` tant qu'elle continue (règles p.3).
+ *
+ * La défaite l'emporte : les ressources s'épuisent au moment même où l'on paie,
+ * y compris en abattant le dernier Boss. Perdre son château en le défendant
+ * reste une défaite.
+ * @param {Partie} partie
+ * @returns {'VICTOIRE' | 'DEFAITE' | null}
+ */
+export function issuePartie(partie) {
+  if (estPerdue(partie)) return 'DEFAITE';
+  if (tousBossVaincus(partie)) return 'VICTOIRE';
+  return null;
+}
 
 /**
  * Détruit les ennemis restés aux Portes (« l'ennemi n'arrête jamais » ne

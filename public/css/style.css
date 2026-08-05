@@ -369,3 +369,37 @@ code {
 .entete .vignette {
   max-width: 14rem;
 }
+
+/* ── Fin de partie ───────────────────────────────────────────────────────── */
+
+.issue {
+  grid-column: 1 / -1;
+  padding: 1.25rem 1.5rem;
+  border: 2px solid currentcolor;
+  border-radius: 0.5rem;
+  text-align: center;
+}
+
+/* La couleur redouble le mot « Victoire » ou « Défaite », elle ne le porte
+   jamais seule. */
+.issue[data-issue='victoire'] {
+  color: var(--accent-fort);
+  background: var(--fond-zone);
+}
+
+.issue[data-issue='defaite'] {
+  color: var(--texte-erreur);
+  background: var(--fond-erreur);
+}
+
+.issue h2 {
+  margin: 0;
+  font-size: 1.75rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.issue p {
+  margin: 0.375rem 0 0;
+  color: var(--texte);
+}

@@ -266,3 +266,14 @@ test('un ennemi non révélé ne montre que le dos, jamais son propre scan', () 
 test('le rôle Roi/Reine a son image dans l’en-tête', () => {
   assert.deepEqual(construireVue(scenario()).imageRoiReine, { fichier: 'margot', moitie: null });
 });
+
+test('partie finie : plus rien n’est activable ni entraînable', () => {
+  const enJeu = { champDeBataille: [avecPivoter('boulanger')] };
+  assert.equal(construireVue(scenario(enJeu)).champDeBataille.cartes[0]?.activable, true);
+  assert.ok(construireVue(scenario(enJeu)).marche.some((m) => m.entrainable));
+
+  const perdue = construireVue(scenario({ ...enJeu, ressources: 0 }));
+  assert.equal(perdue.issue, 'DEFAITE');
+  assert.equal(perdue.champDeBataille.cartes[0]?.activable, false);
+  assert.equal(perdue.marche.some((m) => m.entrainable), false);
+});
