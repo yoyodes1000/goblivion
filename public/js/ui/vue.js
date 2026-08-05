@@ -13,6 +13,7 @@
 import { forceCarte, forceTotale } from '../moteur/force.js';
 import { forceEnnemi, forceEnnemisPortes, slugifier } from '../moteur/combat.js';
 import { modificateursDeForce } from '../moteur/combat-boss.js';
+import { obstacleEntrainement } from '../moteur/entrainement.js';
 import { paysansBase, dores, ennemis } from '../moteur/cartes/index.js';
 
 /** @typedef {import('../moteur/partie.js').Partie} Partie */
@@ -112,6 +113,7 @@ const DOS_ENNEMI = 'dos-ennemi';
  * @property {number | null} force
  * @property {boolean} forceVariable
  * @property {string} niveau
+ * @property {boolean} entrainable   Peut être entraînée maintenant.
  */
 
 /**
@@ -218,10 +220,15 @@ function ennemiVue(ennemi) {
 /**
  * Traduit une pile du marché Doré. Le nom et la force viennent des données de
  * la carte, le reste de l'état de la partie.
+ *
+ * `entrainable` interroge le moteur (`obstacleEntrainement`) plutôt que de
+ * recopier ses conditions — phase, stock, niveau débloqué : la vue grise
+ * exactement ce que l'entraînement refuserait.
  * @param {import('../moteur/partie.js').PileDore} pile
+ * @param {Partie} partie
  * @returns {PileMarcheVue}
  */
-function pileMarcheVue(pile) {
+function pileMarcheVue(pile, partie) {
   const dore = dores.find((d) => d.id === pile.typeId);
   if (!dore) throw new Error(`Carte Doré inconnue au marché : ${pile.typeId}`);
 
@@ -232,6 +239,7 @@ function pileMarcheVue(pile) {
     force: typeof dore.force === 'number' ? dore.force : null,
     forceVariable: dore.force === 'VARIABLE',
     niveau: dore.niveau === 'UNE_EPEE' ? '1 épée' : '2 épées',
+    entrainable: obstacleEntrainement(partie, pile.typeId) === null,
   };
 }
 
@@ -272,6 +280,6 @@ export function construireVue(partie) {
     // Les Boss sont faces cachées jusqu'à être affrontés : leur nombre suffit.
     bossRestants: partie.boss.length,
 
-    marche: partie.marcheDore.map(pileMarcheVue),
+    marche: partie.marcheDore.map((pile) => pileMarcheVue(pile, partie)),
   };
 }

@@ -95,6 +95,7 @@ export function miseEnPlace(options, rng) {
     pouvoirUtilise: false,
     premierCombatGagne: false,
     gardeDuCorpsEchange: false,
+    entrainementUtilise: false,
     cartesActivees: [],
     jetonsIgnores: false,
     orBloque: false,

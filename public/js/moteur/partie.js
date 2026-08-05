@@ -46,6 +46,7 @@ import { phaseSuivante } from './phases.js';
  * @property {boolean} pouvoirUtilise                Pouvoir Roi/Reine déjà joué ?
  * @property {boolean} premierCombatGagne            Débloque l'entraînement 2 épées.
  * @property {boolean} gardeDuCorpsEchange           Garde du corps déjà échangé cette phase ?
+ * @property {boolean} entrainementUtilise           Jeton d'entraînement déjà posé ce TOUR ?
  * @property {boolean} jetonsIgnores                 Jetons bonus alliés annulés pour ce combat (Gobelin pestilant).
  * @property {boolean} orBloque                      Aucun gain d'or pour ce combat (Troll saboteur) ; les pertes s'appliquent.
  * @property {readonly string[]} cartesActivees      instanceId des cartes « pivotées » (activées) cette phase.
@@ -92,8 +93,16 @@ export function reinitialiserEtatsDePhase(partie) {
  */
 export function avancerPhase(partie) {
   const phase = phaseSuivante(partie.phase);
-  const tour = phase === 'ENTRAINEMENT' ? partie.tour + 1 : partie.tour;
-  return Object.freeze({ ...reinitialiserEtatsDePhase(partie), phase, tour });
+  const nouveauTour = phase === 'ENTRAINEMENT';
+
+  return Object.freeze({
+    ...reinitialiserEtatsDePhase(partie),
+    phase,
+    tour: nouveauTour ? partie.tour + 1 : partie.tour,
+    // Le jeton d'entraînement se repose au TOUR, pas à la phase : il se libère
+    // donc en même temps que le compteur de tours s'incrémente.
+    entrainementUtilise: nouveauTour ? false : partie.entrainementUtilise,
+  });
 }
 
 /**

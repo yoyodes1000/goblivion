@@ -14,6 +14,7 @@ import {
   demandeCourante,
   commencerPivoter,
   commencerPouvoir,
+  commencerEntrainement,
   repondreDemande,
   annulerAction,
   passerPhase,
@@ -84,6 +85,9 @@ racine.addEventListener('click', (evenement) => {
       break;
     case 'pouvoir':
       appliquer(commencerPouvoir(session, rng));
+      break;
+    case 'entrainer':
+      appliquer(commencerEntrainement(session, declencheur.dataset['dore'] ?? '', rng));
       break;
     case 'phase':
       appliquer(passerPhase(session));
