@@ -38,13 +38,18 @@
 // dans une branche (cas réel : Scouts) fonctionne exactement comme au
 // premier niveau.
 //
-// Pas encore gérés (lèvent une erreur explicite plutôt que de ne rien faire) :
-// - JETON_ENNEMI, ENNEMI_AVANCE : contexte ennemi/orchestration — gérés par
-//   REVELATION directement (voir revelation.js), pas par cet exécuteur.
+// ENNEMI_AVANCE fait avancer la piste ici — c'est le TESTAMENT du Traître. Une
+// action REVELATION qui le porte n'atteint jamais ce point : `revelation.js`
+// l'intercepte en amont pour en faire un signal, sa boucle devant repartir du
+// début. Les deux traitements coexistent donc sans se marcher dessus.
+//
+// Pas encore géré (lève une erreur explicite plutôt que de ne rien faire) :
+// - JETON_ENNEMI : sa cible est l'ennemi en cours de révélation, que seul son
+//   dispatcher connaît (voir revelation.js).
 
 import { piocher } from './pioche.js';
 import { ajusterRessources, ajouterJetonBonusAllie, rendreTypeImprime } from './partie.js';
-import { revelerSurPiste } from './ennemi-avance.js';
+import { revelerSurPiste, avancerEnnemis } from './ennemi-avance.js';
 import { gestionnairesSpecial } from './special.js';
 
 /** @typedef {import('./partie.js').Partie} Partie */
@@ -254,6 +259,14 @@ export function executerEffets(partie, effets, choix, rng, carteActiveeId, carte
         } else {
           etat = resultat;
         }
+        break;
+      }
+
+      case 'ENNEMI_AVANCE': {
+        // Le TESTAMENT du Traître. Pendant le combat des Boss, il ne fait
+        // rien (FAQ p.18) : la piste y est vide et la règle le dit
+        // explicitement, plutôt que de compter sur un no-op fortuit.
+        if (etat.phase !== 'COMBAT_BOSS') etat = avancerEnnemis(etat);
         break;
       }
 
