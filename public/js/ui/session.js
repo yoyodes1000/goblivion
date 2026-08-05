@@ -12,7 +12,7 @@
 // message dans la session. Un refus (« Gobelin vachelier : une seule cible
 // attendue ») est une information à montrer au joueur, pas un plantage.
 
-import { passerALaPhaseSuivante } from '../moteur/orchestration.js';
+import { passerALaPhaseSuivante, issuePartie } from '../moteur/orchestration.js';
 import { activerPivoter } from '../moteur/pivoter.js';
 import { activerPouvoir } from '../moteur/pouvoir.js';
 import {
@@ -123,6 +123,23 @@ function messageDe(erreur) {
 }
 
 /**
+ * Refus commun à toutes les actions : plus rien ne se joue une fois la partie
+ * finie. Rend `null` tant qu'elle continue.
+ *
+ * L'interface masque déjà les commandes ; ce garde-fou existe pour que l'état
+ * ne dépende pas de ce que le DOM montre.
+ * @param {Session} session
+ * @returns {Session | null}
+ */
+function refusSiTerminee(session) {
+  const issue = issuePartie(session.partie);
+  if (!issue) return null;
+
+  const message = issue === 'VICTOIRE' ? 'La partie est gagnée' : 'La partie est perdue';
+  return Object.freeze({ ...session, enCours: null, erreur: message });
+}
+
+/**
  * Ouvre une action : si sa collecte est complète d'emblée, elle part aussitôt
  * au moteur ; sinon la session attend les réponses.
  * @param {Session} session
@@ -147,6 +164,9 @@ function ouvrir(session, action, rng) {
  * @returns {Session}
  */
 export function commencerPivoter(session, instanceId, rng) {
+  const finie = refusSiTerminee(session);
+  if (finie) return finie;
+
   const carte = session.partie.champDeBataille.find((c) => c.instanceId === instanceId);
   if (!carte) {
     return Object.freeze({ ...session, erreur: 'Carte absente du Champ de bataille' });
@@ -182,6 +202,9 @@ export function commencerPivoter(session, instanceId, rng) {
  * @returns {Session}
  */
 export function commencerPouvoir(session, rng) {
+  const finie = refusSiTerminee(session);
+  if (finie) return finie;
+
   if (session.partie.pouvoirUtilise) {
     return Object.freeze({ ...session, erreur: 'Le pouvoir Roi/Reine a déjà été utilisé' });
   }
@@ -209,6 +232,9 @@ export function commencerPouvoir(session, rng) {
  * @returns {Session}
  */
 export function revelerProchainEnnemi(session, rng) {
+  const finie = refusSiTerminee(session);
+  if (finie) return finie;
+
   if (session.enCours) {
     return Object.freeze({ ...session, erreur: 'Termine l’action en cours d’abord' });
   }
@@ -248,6 +274,9 @@ export function revelerProchainEnnemi(session, rng) {
  * @returns {Session}
  */
 export function resoudreLeCombat(session, rng) {
+  const finie = refusSiTerminee(session);
+  if (finie) return finie;
+
   if (session.enCours) {
     return Object.freeze({ ...session, erreur: 'Termine l’action en cours d’abord' });
   }
@@ -301,6 +330,9 @@ export function resoudreLeCombat(session, rng) {
  * @returns {Session}
  */
 export function commencerEntrainement(session, doreId, rng) {
+  const finie = refusSiTerminee(session);
+  if (finie) return finie;
+
   const obstacle = obstacleEntrainement(session.partie, doreId);
   if (obstacle) return Object.freeze({ ...session, erreur: obstacle });
 
@@ -342,6 +374,9 @@ export function commencerEntrainement(session, doreId, rng) {
  * @returns {Session}
  */
 export function repondreDemande(session, valeurs, rng) {
+  const finie = refusSiTerminee(session);
+  if (finie) return finie;
+
   const action = session.enCours;
   if (!action) return Object.freeze({ ...session, erreur: 'Aucune action en cours' });
 
@@ -408,6 +443,9 @@ export function annulerAction(session) {
  * @returns {Session}
  */
 export function passerPhase(session) {
+  const finie = refusSiTerminee(session);
+  if (finie) return finie;
+
   if (session.enCours) {
     return Object.freeze({ ...session, erreur: 'Termine l’action en cours d’abord' });
   }

@@ -12,6 +12,7 @@ import {
   demandeCourante,
   commencerPivoter,
   commencerPouvoir,
+  commencerEntrainement,
   repondreDemande,
   annulerAction,
   passerPhase,
@@ -333,4 +334,21 @@ test('combattre est refusé tant qu’un ennemi n’est pas révélé', () => {
 test('combattre sans ennemi aux Portes n’a pas de sens', () => {
   const s = session({ phase: /** @type {any} */ ('COMBAT'), portes: [] });
   assert.match(resoudreLeCombat(s, rng()).erreur ?? '', /pas de combat/);
+});
+
+// ── Plus rien ne se joue une fois la partie finie ───────────────────────────
+
+test('partie perdue : toutes les actions sont refusées', () => {
+  const s = nouvelleSession({ ...session().partie, ressources: 0 });
+
+  assert.match(passerPhase(s).erreur ?? '', /perdue/);
+  assert.match(commencerPouvoir(s, rng()).erreur ?? '', /perdue/);
+  assert.match(commencerEntrainement(s, 'batisseur', rng()).erreur ?? '', /perdue/);
+  assert.match(revelerProchainEnnemi(s, rng()).erreur ?? '', /perdue/);
+  assert.equal(passerPhase(s).partie.phase, s.partie.phase); // rien n'a bougé
+});
+
+test('partie gagnée : les actions sont refusées aussi', () => {
+  const s = nouvelleSession({ ...session().partie, boss: [] });
+  assert.match(passerPhase(s).erreur ?? '', /gagnée/);
 });

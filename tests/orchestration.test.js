@@ -12,6 +12,7 @@ import {
   terminerPhaseEnnemiAvance,
   appliquerChateauVide,
   passerALaPhaseSuivante,
+  issuePartie,
 } from '../public/js/moteur/orchestration.js';
 
 /** @returns {import('../public/js/moteur/partie.js').EnnemiSurPiste} */
@@ -153,4 +154,22 @@ test('pile et piste vides : la bascule vers les Boss reste prioritaire', () => {
   const partie = passerALaPhaseSuivante(p);
   assert.equal(partie.phase, 'COMBAT_BOSS');
   assert.equal(partie.portes.length, 0);
+});
+
+// ── Issue de la partie (règles p.3) ─────────────────────────────────────────
+
+test('la partie continue tant qu’il reste des ressources et des Boss', () => {
+  assert.equal(issuePartie(scenario()), null);
+});
+
+test('ressources épuisées : défaite', () => {
+  assert.equal(issuePartie(scenario({ ressources: 0 })), 'DEFAITE');
+});
+
+test('tous les Boss vaincus : victoire', () => {
+  assert.equal(issuePartie(scenario({ boss: [] })), 'VICTOIRE');
+});
+
+test('la défaite l’emporte : tomber à zéro en abattant le dernier Boss reste une défaite', () => {
+  assert.equal(issuePartie(scenario({ ressources: 0, boss: [] })), 'DEFAITE');
 });
