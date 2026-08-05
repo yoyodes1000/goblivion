@@ -17,8 +17,9 @@
     <header class="bandeau">
       <h1>Conversion des scans</h1>
       <p>
-        Page de développement. Elle lit un dossier de scans PNG et écrit, dans un autre dossier,
-        des WebP redimensionnés pour l’affichage. Les originaux ne sont jamais modifiés.
+        Page de développement. Elle lit un dossier de scans PNG — sous-dossiers compris — et écrit
+        dans un autre dossier, à plat, des WebP redimensionnés pour l’affichage. Les originaux ne
+        sont jamais modifiés.
       </p>
     </header>
 
@@ -139,15 +140,17 @@
 
         let convertis = 0, inconnus = 0, octets = 0;
 
-        for await (const entree of source.values()) {
-          if (entree.kind !== 'file' || !/\.(png|jpe?g|webp)$/i.test(entree.name)) continue;
+        /** Sous-dossiers qui ne contiennent pas de cartes. */
+        const ignores = new Set(['plateaux']);
 
+        /** Convertit un fichier et l'écrit dans la destination, à plat. */
+        async function traiter(entree, chemin) {
           const nom = normaliser(entree.name);
           const resolu = resoudre(nom);
           if (!resolu) {
-            noter(`INCONNU  ${entree.name}  →  « ${nom} » ne correspond à aucune carte`, 'ko');
+            noter(`INCONNU  ${chemin}${entree.name}  →  « ${nom} » ne correspond à aucune carte`, 'ko');
             inconnus += 1;
-            continue;
+            return;
           }
 
           const blob = await convertir(entree, largeurMax, qualite);
@@ -161,6 +164,28 @@
           const detail = `${entree.name} → ${resolu.id}.webp  (${Math.round(blob.size / 1024)} Ko)`;
           noter(resolu.renomme ? `RENOMMÉ  ${detail}` : `OK       ${detail}`, resolu.renomme ? 'renomme' : undefined);
         }
+
+        /**
+         * Descend dans l'arborescence : les scans sont rangés par famille
+         * (cartes bleues, cartes boss…), mais la destination reste plate — le
+         * nom de fichier suffit à identifier une carte, son dossier d'origine
+         * n'apporte rien.
+         */
+        async function parcourir(dossier, chemin) {
+          for await (const entree of dossier.values()) {
+            if (entree.kind === 'directory') {
+              if (ignores.has(normaliser(entree.name))) {
+                noter(`IGNORÉ   ${chemin}${entree.name}/ — ce ne sont pas des cartes`);
+                continue;
+              }
+              await parcourir(entree, `${chemin}${entree.name}/`);
+            } else if (/\.(png|jpe?g|webp)$/i.test(entree.name)) {
+              await traiter(entree, chemin);
+            }
+          }
+        }
+
+        await parcourir(source, '');
 
         noter('');
         noter(`Terminé : ${convertis} converties, ${inconnus} non reconnues, ${(octets / 1e6).toFixed(1)} Mo au total.`);

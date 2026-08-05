@@ -11,9 +11,9 @@
 // coup d'œil à l'inspecteur, pour tricher sans le vouloir.
 
 import { forceCarte, forceTotale } from '../moteur/force.js';
-import { forceEnnemi, forceEnnemisPortes } from '../moteur/combat.js';
+import { forceEnnemi, forceEnnemisPortes, slugifier } from '../moteur/combat.js';
 import { modificateursDeForce } from '../moteur/combat-boss.js';
-import { dores } from '../moteur/cartes/index.js';
+import { paysansBase, dores, ennemis } from '../moteur/cartes/index.js';
 
 /** @typedef {import('../moteur/partie.js').Partie} Partie */
 /** @typedef {import('../moteur/partie.js').InstanceAlliee} InstanceAlliee */
@@ -31,6 +31,37 @@ const LIBELLE_PHASE = {
 /** Libellés lisibles des symboles — le symbole ne doit jamais tenir à la seule couleur. */
 const LIBELLE_SYMBOLE = { HUMAIN: 'Paysan', OBJET: 'Objet' };
 
+/** Cartes qui ont leur propre scan, recto entier. */
+const CARTES_ENTIERES = new Set([...paysansBase, ...dores].map((c) => c.id));
+
+/**
+ * Récompense → ennemi dont elle occupe la moitié basse. Une carte Ennemi/Objet
+ * est un seul carton : l'ennemi en haut, l'objet en bas à 180°. L'image d'un
+ * Objet gagné est donc celle de l'ennemi qui le portait.
+ *
+ * Les récompenses qui existent AUSSI comme carte à part entière en sont
+ * exclues — le Soldat est une Dorée avant d'être la récompense du Gobelin
+ * trappeur, et c'est son propre scan qu'il faut montrer.
+ */
+const ENNEMI_PAR_RECOMPENSE = new Map(
+  ennemis
+    .filter((e) => e.recompense)
+    .map((e) => /** @type {[string, string]} */ ([slugifier(e.recompense.nom), e.id]))
+    .filter(([id]) => !CARTES_ENTIERES.has(id)),
+);
+
+/** Dos générique des cartes Ennemi, seul visage d'un ennemi non révélé. */
+const DOS_ENNEMI = 'dos-ennemi';
+
+/**
+ * L'image d'une carte : quel fichier charger, et quelle moitié en montrer.
+ * `moitie` vaut `null` pour un scan de carte entière ; `HAUT` et `BAS`
+ * découpent une carte Ennemi/Objet, dont la moitié basse est imprimée à 180°.
+ * @typedef {object} ImageVue
+ * @property {string} fichier   Nom de base, sans dossier ni extension.
+ * @property {'HAUT' | 'BAS' | null} moitie
+ */
+
 /**
  * Une carte alliée visible.
  * @typedef {object} CarteVue
@@ -43,6 +74,7 @@ const LIBELLE_SYMBOLE = { HUMAIN: 'Paysan', OBJET: 'Objet' };
  * @property {boolean} activee       Déjà « pivotée » cette phase.
  * @property {boolean} activable     Son action Pivoter est jouable maintenant.
  * @property {string[]} actions      Textes des actions de la carte.
+ * @property {ImageVue} image        Le scan à afficher, si le joueur en a fourni un.
  */
 
 /**
@@ -52,6 +84,7 @@ const LIBELLE_SYMBOLE = { HUMAIN: 'Paysan', OBJET: 'Objet' };
  * @typedef {object} EnnemiVue
  * @property {boolean} revele
  * @property {number} jetonBonus
+ * @property {ImageVue} image        Le dos tant qu'il n'est pas révélé.
  * @property {string} [nom]          Absent tant que l'ennemi n'est pas révélé.
  * @property {number} [force]        Idem — force imprimée plus jeton.
  * @property {string} [niveau]       Idem.
@@ -85,6 +118,7 @@ const LIBELLE_SYMBOLE = { HUMAIN: 'Paysan', OBJET: 'Objet' };
  * Le modèle complet d'affichage d'un état de partie.
  * @typedef {object} VuePartie
  * @property {string} roiReine
+ * @property {ImageVue} imageRoiReine
  * @property {number} tour
  * @property {string} phase
  * @property {number} ressources
@@ -119,6 +153,17 @@ function forceAffichable(carte, partie, enJeu) {
 }
 
 /**
+ * L'image d'une carte alliée : son propre scan, ou la moitié basse de
+ * l'ennemi qui la portait s'il s'agit d'un Objet gagné au combat.
+ * @param {InstanceAlliee} carte
+ * @returns {ImageVue}
+ */
+function imageDeCarte(carte) {
+  const ennemi = ENNEMI_PAR_RECOMPENSE.get(carte.type.id);
+  return ennemi ? { fichier: ennemi, moitie: 'BAS' } : { fichier: carte.type.id, moitie: null };
+}
+
+/**
  * Traduit une carte alliée visible.
  * @param {InstanceAlliee} carte
  * @param {Partie} partie
@@ -143,6 +188,7 @@ function carteVue(carte, partie, enJeu) {
     // `texte` est optionnel dans les données : une action sans libellé est
     // omise, plutôt que d'afficher un trou à l'écran.
     actions: carte.type.actions.flatMap((a) => (a.texte ? [a.texte] : [])),
+    image: imageDeCarte(carte),
   };
 }
 
@@ -153,11 +199,16 @@ function carteVue(carte, partie, enJeu) {
  * @returns {EnnemiVue}
  */
 function ennemiVue(ennemi) {
-  if (!ennemi.revele) return { revele: false, jetonBonus: ennemi.jetonBonus };
+  // Face cachée, il n'a qu'un dos : son scan reste hors de portée du rendu,
+  // qui ne pourrait donc pas le montrer même par erreur.
+  if (!ennemi.revele) {
+    return { revele: false, jetonBonus: ennemi.jetonBonus, image: { fichier: DOS_ENNEMI, moitie: null } };
+  }
 
   return {
     revele: true,
     jetonBonus: ennemi.jetonBonus,
+    image: { fichier: ennemi.instance.type.id, moitie: 'HAUT' },
     nom: ennemi.instance.type.nom,
     force: forceEnnemi(ennemi),
     niveau: ennemi.instance.type.niveau === 'UNE_EPEE' ? '1 épée' : '2 épées',
@@ -192,6 +243,7 @@ function pileMarcheVue(pile) {
 export function construireVue(partie) {
   return {
     roiReine: partie.roiReine.nom,
+    imageRoiReine: { fichier: partie.roiReine.id, moitie: null },
     tour: partie.tour,
     phase: LIBELLE_PHASE[partie.phase] ?? partie.phase,
     ressources: partie.ressources,

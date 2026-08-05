@@ -30,10 +30,12 @@ export function forceEnnemisPortes(partie) {
 
 /**
  * Identifiant stable (kebab, sans accent) d'une carte Objet récompense.
+ * Exportée pour que l'interface retrouve la même clé sans recopier la règle :
+ * c'est elle qui décide du `type.id` d'un Objet gagné au combat.
  * @param {string} nom
  * @returns {string}
  */
-function slugifier(nom) {
+export function slugifier(nom) {
   return nom
     .toLowerCase()
     .normalize('NFD')
