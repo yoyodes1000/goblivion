@@ -391,6 +391,15 @@ function rendreCommandes(vue, actionOuverte) {
   phase.disabled = actionOuverte;
 
   section.append(phase, pouvoir);
+
+  // La révélation se fait ennemi par ennemi : le joueur voit chaque pioche et
+  // chaque action avant de passer au suivant.
+  if (vue.ennemisARevele > 0) {
+    const reveler = bouton(`Révéler l’ennemi suivant (${vue.ennemisARevele})`, 'reveler');
+    reveler.disabled = actionOuverte;
+    section.append(reveler);
+  }
+
   return section;
 }
 

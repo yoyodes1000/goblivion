@@ -23,6 +23,8 @@ import {
   renoncerEntrainement,
 } from '../moteur/entrainement.js';
 import { dores } from '../moteur/cartes/index.js';
+import { prochainARevele, piocherPourEnnemi, revelerAuxPortes } from '../moteur/revelation.js';
+import { avancerEnnemis } from '../moteur/ennemi-avance.js';
 import {
   demarrerCollecte,
   demarrerCollectePouvoir,
@@ -43,10 +45,11 @@ import {
  * imbriquer. ENTRAINEMENT, lui, n'exécute aucun effet — il demande une OPTION,
  * la carte à sacrifier, et sa question est donc fabriquée telle quelle.
  * @typedef {object} ActionEnCours
- * @property {'PIVOTER' | 'POUVOIR' | 'ENTRAINEMENT'} genre
+ * @property {'PIVOTER' | 'POUVOIR' | 'ENTRAINEMENT' | 'REVELATION'} genre
  * @property {string} libelle              Ce qu'on est en train de jouer, pour l'afficher.
  * @property {string} [instanceId]         La carte activée (PIVOTER seulement).
  * @property {string} [doreId]             La Doré convoitée (ENTRAINEMENT seulement).
+ * @property {number} [indexEnnemi]        L'ennemi révélé (REVELATION seulement).
  * @property {EtatCollecte} [collecte]     Absente pour un entraînement.
  * @property {Demande} [demande]           Question fabriquée (ENTRAINEMENT seulement).
  */
@@ -89,6 +92,15 @@ function executer(session, action, rng) {
   try {
     if (!action.collecte) throw new Error('Action sans effets à exécuter');
     const choix = choixFinal(action.collecte);
+
+    if (action.genre === 'REVELATION') {
+      const resultat = revelerAuxPortes(session.partie, action.indexEnnemi ?? 0, choix, rng);
+      // « L'ennemi avance » déclenché par une révélation fait glisser la piste :
+      // les nouveaux venus, non révélés, seront ramassés au tour suivant.
+      const partie = resultat.ennemiAvance ? avancerEnnemis(resultat.partie) : resultat.partie;
+      return Object.freeze({ partie, enCours: null, erreur: null });
+    }
+
     const { partie } =
       action.genre === 'POUVOIR'
         ? activerPouvoir(session.partie, choix, rng)
@@ -179,6 +191,45 @@ export function commencerPouvoir(session, rng) {
       genre: 'POUVOIR',
       libelle: session.partie.roiReine.nom,
       collecte: demarrerCollectePouvoir(session.partie),
+    },
+    rng,
+  );
+}
+
+/**
+ * Révèle l'ennemi non révélé le plus à gauche des Portes : pioche ses cartes,
+ * puis lance son action — en s'arrêtant si elle réclame une cible.
+ *
+ * La pioche est engagée dès ce moment, comme aux règles : on pioche d'abord,
+ * l'action ensuite. Un ennemi ne se révèle qu'une fois, `revele` faisant office
+ * de marqueur d'avancement.
+ * @param {Session} session
+ * @param {() => number} rng
+ * @returns {Session}
+ */
+export function revelerProchainEnnemi(session, rng) {
+  if (session.enCours) {
+    return Object.freeze({ ...session, erreur: 'Termine l’action en cours d’abord' });
+  }
+
+  const index = prochainARevele(session.partie);
+  if (index === null) {
+    return Object.freeze({ ...session, erreur: 'Tous les ennemis aux Portes sont révélés' });
+  }
+
+  const { partie } = piocherPourEnnemi(session.partie, index, rng);
+  const ennemi = partie.portes[index];
+  if (!ennemi) return Object.freeze({ ...session, erreur: 'Aucun ennemi à cet index des Portes' });
+
+  const action = ennemi.instance.type.actionsEnnemi.find((a) => a.declencheur === 'REVELATION');
+
+  return ouvrir(
+    Object.freeze({ ...session, partie, erreur: null }),
+    {
+      genre: 'REVELATION',
+      libelle: ennemi.instance.type.nom,
+      indexEnnemi: index,
+      collecte: demarrerCollecte(partie, action?.effets ?? [], { typeId: ennemi.instance.type.id }),
     },
     rng,
   );

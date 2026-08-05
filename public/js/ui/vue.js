@@ -134,6 +134,7 @@ const DOS_ENNEMI = 'dos-ennemi';
  * @property {ZoneCacheeVue} pileEnnemi
  * @property {(EnnemiVue | null)[]} pisteEnnemi
  * @property {EnnemiVue[]} portes
+ * @property {number} ennemisARevele   Combien restent à révéler aux Portes.
  * @property {number} bossRestants
  * @property {PileMarcheVue[]} marche
  */
@@ -276,6 +277,7 @@ export function construireVue(partie) {
 
     pisteEnnemi: partie.pisteEnnemi.map((e) => (e ? ennemiVue(e) : null)),
     portes: partie.portes.map(ennemiVue),
+    ennemisARevele: partie.portes.filter((e) => !e.revele).length,
 
     // Les Boss sont faces cachées jusqu'à être affrontés : leur nombre suffit.
     bossRestants: partie.boss.length,
