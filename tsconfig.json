@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "types": ["node"],
+
+    // Tout est en JavaScript : le navigateur charge les modules sans build, et
+    // TypeScript ne sert qu'à VÉRIFIER via les annotations JSDoc. Jamais d'émission.
+    "noEmit": true,
+    "allowJs": true,
+    "checkJs": true,
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "exactOptionalPropertyTypes": true,
+
+    "skipLibCheck": true
+  },
+  "include": ["public/js/**/*.js", "tests/**/*.js", "outils/**/*.js"]
+}

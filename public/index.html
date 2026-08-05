@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Goblivion</title>
+    <link rel="stylesheet" href="/css/style.css" />
+    <script type="module" src="/js/app.js"></script>
+  </head>
+  <body>
+    <header class="bandeau">
+      <h1>Goblivion</h1>
+      <p class="avertissement">
+        Portage personnel non officiel. Les actions Pivoter et le pouvoir Roi/Reine se jouent ;
+        l’entraînement et les combats restent à brancher.
+      </p>
+    </header>
+
+    <!-- Le plateau est bâti par ui/rendu.js : sa structure dépend de l'état
+         affiché (nombre de piles au marché, cases occupées…), la garder ici en
+         double finirait par diverger. -->
+    <main id="plateau" class="plateau">
+      <p>Chargement du plateau…</p>
+    </main>
+
+    <footer class="bandeau">
+      <p>Graine de la partie : <code id="graine">—</code></p>
+    </footer>
+  </body>
+</html>

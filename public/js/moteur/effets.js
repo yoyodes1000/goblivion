@@ -1,0 +1,291 @@
+// Moteur — exécution des effets structurés d'une action (voir le vocabulaire
+// dans cartes/types.js). Couche PURE, aléa injecté.
+//
+// Les effets qui visent une carte précise (défausser, détruire...) ou une
+// branche (CHOIX) reçoivent leur cible en paramètre, via `choix` : le moteur
+// ne choisit jamais à la place du joueur, l'UI la fournira au clic.
+//
+// FORCE cible « la carte activée » elle-même (poser un jeton bonus sur la
+// carte dont l'action est en train de s'exécuter) — ce n'est pas un choix du
+// joueur, donc pas dans `choix` : l'appelant (le dispatcher, qui sait quelle
+// carte il active) le fournit via le paramètre `carteActiveeId`. Sans lui,
+// une action contenant FORCE lève une erreur explicite plutôt que de deviner
+// une cible.
+//
+// SPECIAL délègue au gestionnaire de `special.js` correspondant au `type.id`
+// de la carte activée, fourni par l'appelant via `carteActiveeTypeId` (un
+// id de carte, pas un instanceId : c'est une clé de registre, pas une
+// recherche dans une zone). Sans gestionnaire trouvé, lève une erreur
+// explicite plutôt que de ne rien faire.
+//
+// Certains gestionnaires SPECIAL ont besoin de la machinerie de ce fichier :
+// détruire une carte avec son éventuel TESTAMENT (Sorcière troll, Booba
+// Brise-Fer), ou exécuter une suite d'effets arbitraire (Chapeau magique, qui
+// copie l'action Pivoter d'une autre carte). Elle vit ici, pas dans
+// `special.js`, qui ne peut pas l'importer sans créer un cycle (ce fichier
+// importe déjà `special.js`). Elle lui est donc *injectée* via l'objet
+// `outils`, sur le même principe que `rng` et `carteActiveeId` : le
+// gestionnaire peut alors renvoyer soit un `Partie` (cas courant), soit
+// `{ partie, reconstitutions }` s'il a pioché (voir le cas 'SPECIAL').
+//
+// Détruire une carte (DETRUIRE_JEU/DETRUIRE_HOPITAL) déclenche son éventuelle
+// action TESTAMENT, exécutée récursivement via executerEffets.
+//
+// CHOIX exécute la branche choisie (`choix.branche`, un index dans
+// `effet.options`) en rappelant executerEffets récursivement sur ses effets,
+// avec ses propres sous-choix (`choix.choixBranche`) — et en propageant
+// carteActiveeId/carteActiveeTypeId, pour qu'un FORCE ou SPECIAL imbriqué
+// dans une branche (cas réel : Scouts) fonctionne exactement comme au
+// premier niveau.
+//
+// ENNEMI_AVANCE fait avancer la piste ici — c'est le TESTAMENT du Traître. Une
+// action REVELATION qui le porte n'atteint jamais ce point : `revelation.js`
+// l'intercepte en amont pour en faire un signal, sa boucle devant repartir du
+// début. Les deux traitements coexistent donc sans se marcher dessus.
+//
+// Pas encore géré (lève une erreur explicite plutôt que de ne rien faire) :
+// - JETON_ENNEMI : sa cible est l'ennemi en cours de révélation, que seul son
+//   dispatcher connaît (voir revelation.js).
+
+import { piocher } from './pioche.js';
+import { ajusterRessources, ajouterJetonBonusAllie, rendreTypeImprime } from './partie.js';
+import { revelerSurPiste, avancerEnnemis } from './ennemi-avance.js';
+import { gestionnairesSpecial } from './special.js';
+
+/** @typedef {import('./partie.js').Partie} Partie */
+/** @typedef {import('./partie.js').InstanceAlliee} InstanceAlliee */
+/** @typedef {import('./cartes/types.js').Effet} Effet */
+
+/**
+ * Le choix nécessaire pour résoudre un effet donné (absent si l'effet n'en a
+ * pas besoin) : `cibles` pour DEFAUSSER/DETRUIRE_JEU/DETRUIRE_HOPITAL (un
+ * instanceId par carte visée), `indexPiste` pour VISION (un index de case par
+ * vision générée), `choixTestament` pour DETRUIRE_JEU/DETRUIRE_HOPITAL — le
+ * choix de l'action TESTAMENT que la carte détruite déclenche, le cas échéant.
+ * `branche`/`choixBranche` pour CHOIX : l'index choisi dans `effet.options`,
+ * et les choix pour les effets de cette branche. `choixCopie` pour le Chapeau
+ * magique : les choix des effets de l'action Pivoter copiée.
+ * @typedef {object} Choix
+ * @property {readonly string[]} [cibles]
+ * @property {readonly number[]} [indexPiste]
+ * @property {readonly (Choix | undefined)[]} [choixTestament]
+ * @property {number} [branche]
+ * @property {readonly (Choix | undefined)[]} [choixBranche]
+ * @property {readonly (Choix | undefined)[]} [choixCopie]
+ */
+
+/**
+ * Défausse les cartes visées du Champ de bataille vers l'Hôpital.
+ * @param {Partie} partie
+ * @param {readonly string[]} cibles
+ * @returns {Partie}
+ */
+function defausser(partie, cibles) {
+  let etat = partie;
+  for (const instanceId of cibles) {
+    const carte = etat.champDeBataille.find((c) => c.instanceId === instanceId);
+    if (!carte) throw new Error(`DEFAUSSER : carte absente du Champ de bataille (${instanceId})`);
+    etat = Object.freeze({
+      ...etat,
+      champDeBataille: etat.champDeBataille.filter((c) => c.instanceId !== instanceId),
+      hopital: [...etat.hopital, rendreTypeImprime(carte)],
+    });
+  }
+  return etat;
+}
+
+/**
+ * Exécute l'action TESTAMENT de `carte` si elle en a une (à appeler juste
+ * après sa destruction). Sans TESTAMENT, ne fait rien.
+ * @param {Partie} partie
+ * @param {InstanceAlliee} carte
+ * @param {readonly (Choix | undefined)[]} choix
+ * @param {() => number} rng
+ * @returns {{ partie: Partie, reconstitutions: number }}
+ */
+function executerTestament(partie, carte, choix, rng) {
+  const action = carte.type.actions.find((a) => a.declencheur === 'TESTAMENT');
+  if (!action) return { partie, reconstitutions: 0 };
+  return executerEffets(partie, action.effets, choix, rng, undefined, carte.type.id);
+}
+
+/**
+ * Détruit la carte visée du Champ de bataille (retirée du jeu, définitif) et
+ * exécute son éventuel TESTAMENT.
+ * @param {Partie} partie
+ * @param {string} instanceId
+ * @param {readonly (Choix | undefined)[]} choixTestament
+ * @param {() => number} rng
+ * @returns {{ partie: Partie, reconstitutions: number }}
+ */
+export function detruireEnJeu(partie, instanceId, choixTestament, rng) {
+  const carte = partie.champDeBataille.find((c) => c.instanceId === instanceId);
+  if (!carte) throw new Error(`DETRUIRE_JEU : carte absente du Champ de bataille (${instanceId})`);
+
+  const etat = Object.freeze({
+    ...partie,
+    champDeBataille: partie.champDeBataille.filter((c) => c.instanceId !== instanceId),
+  });
+
+  return executerTestament(etat, carte, choixTestament, rng);
+}
+
+/**
+ * Détruit la carte visée de l'Hôpital (retirée du jeu, définitif) et exécute
+ * son éventuel TESTAMENT.
+ * @param {Partie} partie
+ * @param {string} instanceId
+ * @param {readonly (Choix | undefined)[]} choixTestament
+ * @param {() => number} rng
+ * @returns {{ partie: Partie, reconstitutions: number }}
+ */
+function detruireHopital(partie, instanceId, choixTestament, rng) {
+  const carte = partie.hopital.find((c) => c.instanceId === instanceId);
+  if (!carte) throw new Error(`DETRUIRE_HOPITAL : carte absente de l'Hôpital (${instanceId})`);
+
+  const etat = Object.freeze({
+    ...partie,
+    hopital: partie.hopital.filter((c) => c.instanceId !== instanceId),
+  });
+
+  return executerTestament(etat, carte, choixTestament, rng);
+}
+
+/**
+ * Révèle les cases de piste visées (effet VISION).
+ * @param {Partie} partie
+ * @param {readonly number[]} indexPiste
+ * @returns {Partie}
+ */
+function genererVision(partie, indexPiste) {
+  let etat = partie;
+  for (const index of indexPiste) etat = revelerSurPiste(etat, index);
+  return etat;
+}
+
+/**
+ * Exécute une suite d'effets (l'`effets` d'une `Action`), dans l'ordre.
+ * `choix[i]` fournit la décision du joueur pour `effets[i]` quand il en faut
+ * une (voir `Choix`) ; absent pour PIOCHER/OR, qui n'en ont pas besoin.
+ * `carteActiveeId` est la cible de FORCE (« la carte activée ») — fourni par
+ * l'appelant, jamais par `choix` ; absent, une action avec FORCE lève une
+ * erreur explicite. `carteActiveeTypeId` (le `type.id` de cette même carte)
+ * sert de clé de registre pour SPECIAL — voir `special.js`.
+ * @param {Partie} partie
+ * @param {readonly Effet[]} effets
+ * @param {readonly (Choix | undefined)[]} choix
+ * @param {() => number} rng
+ * @param {string} [carteActiveeId]
+ * @param {string} [carteActiveeTypeId]
+ * @returns {{ partie: Partie, reconstitutions: number }}
+ */
+export function executerEffets(partie, effets, choix, rng, carteActiveeId, carteActiveeTypeId) {
+  let etat = partie;
+  let reconstitutions = 0;
+
+  effets.forEach((effet, i) => {
+    const c = choix[i];
+    switch (effet.type) {
+      case 'PIOCHER': {
+        const r = piocher(etat, effet.valeur ?? 1, rng);
+        etat = r.partie;
+        reconstitutions += r.reconstitutions;
+        break;
+      }
+
+      case 'OR': {
+        const valeur = effet.valeur ?? 0;
+        // Deux raisons d'annuler un GAIN d'or — jamais une perte : le Troll
+        // saboteur, le temps d'un combat (`orBloque`), et le combat des Boss,
+        // où « les Boss ont mis le feu au château » (règles p.15). Dans les
+        // deux cas l'action se joue quand même : la carte est bien activée,
+        // ses autres effets tiennent, seul le gain est perdu.
+        const gainsBloques = etat.orBloque || etat.phase === 'COMBAT_BOSS';
+        if (!(gainsBloques && valeur > 0)) {
+          etat = ajusterRessources(etat, valeur);
+        }
+        break;
+      }
+
+      case 'VISION': {
+        const indexPiste = c?.indexPiste ?? [];
+        if (indexPiste.length !== (effet.valeur ?? 1)) {
+          throw new Error('VISION : nombre de cases visées invalide');
+        }
+        etat = genererVision(etat, indexPiste);
+        break;
+      }
+
+      case 'DEFAUSSER': {
+        const cibles = c?.cibles ?? [];
+        if (cibles.length !== (effet.valeur ?? 1)) {
+          throw new Error('DEFAUSSER : nombre de cibles invalide');
+        }
+        etat = defausser(etat, cibles);
+        break;
+      }
+
+      case 'DETRUIRE_JEU': {
+        const [cible, ...reste] = c?.cibles ?? [];
+        if (!cible || reste.length > 0) throw new Error('DETRUIRE_JEU : une seule cible attendue');
+        const r = detruireEnJeu(etat, cible, c?.choixTestament ?? [], rng);
+        etat = r.partie;
+        reconstitutions += r.reconstitutions;
+        break;
+      }
+
+      case 'DETRUIRE_HOPITAL': {
+        const [cible, ...reste] = c?.cibles ?? [];
+        if (!cible || reste.length > 0) throw new Error('DETRUIRE_HOPITAL : une seule cible attendue');
+        const r = detruireHopital(etat, cible, c?.choixTestament ?? [], rng);
+        etat = r.partie;
+        reconstitutions += r.reconstitutions;
+        break;
+      }
+
+      case 'FORCE': {
+        if (!carteActiveeId) throw new Error('FORCE : aucune carte activée dans ce contexte');
+        etat = ajouterJetonBonusAllie(etat, carteActiveeId, effet.valeur ?? 0);
+        break;
+      }
+
+      case 'SPECIAL': {
+        const gestionnaire = carteActiveeTypeId ? gestionnairesSpecial[carteActiveeTypeId] : undefined;
+        if (!gestionnaire) throw new Error(`SPECIAL non encore exécutable : ${effet.texte}`);
+        const resultat = gestionnaire(etat, c, rng, carteActiveeId, { detruireEnJeu, executerEffets });
+        if ('reconstitutions' in resultat) {
+          etat = resultat.partie;
+          reconstitutions += resultat.reconstitutions;
+        } else {
+          etat = resultat;
+        }
+        break;
+      }
+
+      case 'ENNEMI_AVANCE': {
+        // Le TESTAMENT du Traître. Pendant le combat des Boss, il ne fait
+        // rien (FAQ p.18) : la piste y est vide et la règle le dit
+        // explicitement, plutôt que de compter sur un no-op fortuit.
+        if (etat.phase !== 'COMBAT_BOSS') etat = avancerEnnemis(etat);
+        break;
+      }
+
+      case 'CHOIX': {
+        const branche = c?.branche;
+        const options = effet.options ?? [];
+        if (branche === undefined || !options[branche]) {
+          throw new Error('CHOIX : branche invalide');
+        }
+        const r = executerEffets(etat, options[branche], c?.choixBranche ?? [], rng, carteActiveeId, carteActiveeTypeId);
+        etat = r.partie;
+        reconstitutions += r.reconstitutions;
+        break;
+      }
+
+      default:
+        throw new Error(`Effet non encore exécutable : ${effet.type}`);
+    }
+  });
+
+  return { partie: etat, reconstitutions };
+}

@@ -1,0 +1,405 @@
+/* Feuille de style du plateau.
+ *
+ * Contraintes tenues ici (CLAUDE.md, section Accessibilité) :
+ * - tout est dimensionné en `rem` : la taille de police choisie par
+ *   l'utilisateur est respectée, et la page reste lisible à 200 % de zoom (le
+ *   plateau se recompose en colonnes, sans défilement horizontal) ;
+ * - aucune information n'est portée par la seule couleur — « activée »,
+ *   « Objet », « épuisée » sont écrits en toutes lettres par le rendu, la
+ *   couleur ne fait que redoubler le texte ;
+ * - contrastes ≥ 4,5:1 en thème clair comme en thème sombre.
+ *
+ * Aucune animation ici, donc rien à neutraliser sous `prefers-reduced-motion`
+ * pour l'instant.
+ */
+
+:root {
+  color-scheme: light dark;
+
+  --fond: light-dark(#f7f5f0, #16151a);
+  --fond-zone: light-dark(#ffffff, #1f1e26);
+  --fond-carte: light-dark(#f1ede5, #2a2833);
+  --texte: light-dark(#1a1a1f, #ece9f0);
+  --texte-doux: light-dark(#55505c, #a9a3b5);
+  --bordure: light-dark(#d8d2c6, #3a3746);
+  --accent: light-dark(#7a4310, #e8b878);
+
+  /* Fond de bouton : assez sombre en clair, assez clair en sombre, pour que le
+     texte posé dessus (--fond-zone) garde un contraste ≥ 4,5:1. */
+  --accent-fort: light-dark(#6b3a0d, #d9a45e);
+  --texte-erreur: light-dark(#8a1c1c, #ffb4a8);
+  --fond-erreur: light-dark(#fdf0ee, #3a1f1d);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--fond);
+  color: var(--texte);
+  font-family: system-ui, sans-serif;
+  line-height: 1.5;
+}
+
+/* ── Bandeaux ────────────────────────────────────────────────────────────── */
+
+.bandeau {
+  padding: 1rem 1.5rem;
+}
+
+header.bandeau {
+  border-block-end: 1px solid var(--bordure);
+}
+
+footer.bandeau {
+  border-block-start: 1px solid var(--bordure);
+}
+
+.bandeau h1 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.bandeau p {
+  margin: 0.25rem 0 0;
+  color: var(--texte-doux);
+  font-size: 0.875rem;
+}
+
+code {
+  font-family: ui-monospace, monospace;
+}
+
+/* ── Plateau ─────────────────────────────────────────────────────────────── */
+
+.plateau {
+  display: grid;
+  gap: 1rem;
+  /* `min(100%, 22rem)` : sur écran étroit la colonne se réduit au lieu de
+     forcer un défilement horizontal. */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  align-items: start;
+  padding: 1rem;
+  max-width: 100rem;
+  margin-inline: auto;
+}
+
+.zone,
+.entete {
+  background: var(--fond-zone);
+  border: 1px solid var(--bordure);
+  border-radius: 0.5rem;
+  padding: 1rem;
+}
+
+.zone h2,
+.entete h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--texte-doux);
+}
+
+.zone-vide {
+  margin: 0;
+  color: var(--texte-doux);
+  font-style: italic;
+}
+
+/* ── Résumé en liste de définitions ──────────────────────────────────────── */
+
+.resume {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.25rem 1rem;
+  margin: 0;
+}
+
+.resume dt {
+  color: var(--texte-doux);
+}
+
+.resume dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+/* ── Cartes ──────────────────────────────────────────────────────────────── */
+
+.cartes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.carte,
+.ennemi {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  flex: 1 1 10rem;
+  min-width: 0; /* laisse un texte long se replier plutôt que déborder */
+  background: var(--fond-carte);
+  border: 1px solid var(--bordure);
+  border-radius: 0.375rem;
+  padding: 0.5rem 0.625rem;
+}
+
+.carte-nom,
+.ennemi-nom {
+  font-weight: 600;
+}
+
+.carte-symbole,
+.carte-force,
+.carte-restant,
+.ennemi-niveau,
+.ennemi-force {
+  font-size: 0.8125rem;
+  color: var(--texte-doux);
+}
+
+.carte-jeton,
+.carte-activee {
+  align-self: start;
+  margin-block-start: 0.125rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--accent);
+  border: 1px solid currentcolor;
+  border-radius: 999px;
+  padding: 0 0.5rem;
+}
+
+.carte-actions {
+  margin: 0.375rem 0 0;
+  padding-inline-start: 1rem;
+  font-size: 0.75rem;
+  color: var(--texte-doux);
+}
+
+/* La couleur ne fait que redoubler le mot « activée » / « épuisée ». */
+.carte[data-activee='oui'] {
+  border-color: var(--accent);
+}
+
+.carte[data-epuisee='oui'] {
+  opacity: 0.55;
+}
+
+.ennemi[data-revele='non'] .ennemi-nom {
+  color: var(--texte-doux);
+  font-weight: 400;
+  font-style: italic;
+}
+
+/* ── Piste ennemie ───────────────────────────────────────────────────────── */
+
+.piste {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.case-piste {
+  display: grid;
+  grid-template-columns: 5rem 1fr;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.case-numero {
+  font-size: 0.8125rem;
+  color: var(--texte-doux);
+}
+
+/* ── Interaction ─────────────────────────────────────────────────────────── */
+
+.bouton {
+  align-self: start;
+  margin-block-start: 0.5rem;
+  padding: 0.375rem 0.875rem;
+  font: inherit;
+  font-size: 0.875rem;
+  color: var(--fond-zone);
+  background: var(--accent-fort);
+  border: 1px solid transparent;
+  border-radius: 0.375rem;
+  cursor: pointer;
+}
+
+.bouton:hover:not(:disabled) {
+  filter: brightness(1.15);
+}
+
+.bouton:disabled {
+  color: var(--texte-doux);
+  background: transparent;
+  border-color: var(--bordure);
+  cursor: not-allowed;
+}
+
+/* Focus toujours visible, et jamais uniquement par la couleur : le trait est
+   épais et décollé, lisible même sans percevoir la teinte. */
+:focus-visible {
+  outline: 3px solid var(--accent-fort);
+  outline-offset: 2px;
+}
+
+.commandes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  background: var(--fond-zone);
+  border: 1px solid var(--bordure);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  grid-column: 1 / -1;
+}
+
+.commandes h2 {
+  margin: 0 1rem 0 0;
+  font-size: 1rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--texte-doux);
+}
+
+.commandes .bouton {
+  margin-block-start: 0;
+}
+
+/* ── Question en cours ───────────────────────────────────────────────────── */
+
+.demande {
+  grid-column: 1 / -1;
+  background: var(--fond-zone);
+  border: 2px solid var(--accent-fort);
+  border-radius: 0.5rem;
+  padding: 1rem;
+}
+
+.demande fieldset {
+  margin: 0 0 0.75rem;
+  padding: 0;
+  border: 0;
+}
+
+.demande legend {
+  padding: 0;
+  font-weight: 600;
+  font-size: 1.0625rem;
+}
+
+.demande-consigne {
+  margin: 0.25rem 0 0.5rem;
+  color: var(--texte-doux);
+  font-size: 0.875rem;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+  cursor: pointer;
+}
+
+.demande .bouton {
+  margin-block-start: 0;
+  margin-inline-end: 0.5rem;
+}
+
+.erreur {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 0.75rem 1rem;
+  color: var(--texte-erreur);
+  background: var(--fond-erreur);
+  border: 1px solid currentcolor;
+  border-radius: 0.5rem;
+  font-weight: 600;
+}
+
+/* ── Scans de cartes ─────────────────────────────────────────────────────── */
+/* Les images sont facultatives : sans elles, ces règles ne s'appliquent à
+   rien et le plateau reste en texte (voir `rendreImage` dans ui/rendu.js). */
+
+.vignette {
+  margin-block-end: 0.375rem;
+}
+
+.vignette img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 0.25rem;
+}
+
+/* Une carte Ennemi/Objet est un carton unique : ennemi en haut, objet en bas
+   à 180°. Le cadre fait exactement la MOITIÉ de la hauteur du scan, si bien
+   qu'il n'en laisse voir que le haut ; une rotation de 180° amène la moitié
+   basse à sa place, le centre de l'image tombant pile sur le bord du cadre.
+   Ce rapport n'est qu'un défaut, le temps que l'image arrive : `rendu.js` le
+   remplace par celui mesuré sur le scan réel. */
+.vignette--moitie {
+  overflow: hidden;
+  aspect-ratio: 990 / 685;
+  border-radius: 0.25rem;
+}
+
+.vignette--moitie img {
+  border-radius: 0;
+}
+
+.vignette--moitie[data-moitie='bas'] img {
+  transform: rotate(180deg);
+}
+
+/* Le rôle en en-tête : plus grand, c'est la seule carte unique de la partie. */
+.entete .vignette {
+  max-width: 14rem;
+}
+
+/* ── Fin de partie ───────────────────────────────────────────────────────── */
+
+.issue {
+  grid-column: 1 / -1;
+  padding: 1.25rem 1.5rem;
+  border: 2px solid currentcolor;
+  border-radius: 0.5rem;
+  text-align: center;
+}
+
+/* La couleur redouble le mot « Victoire » ou « Défaite », elle ne le porte
+   jamais seule. */
+.issue[data-issue='victoire'] {
+  color: var(--accent-fort);
+  background: var(--fond-zone);
+}
+
+.issue[data-issue='defaite'] {
+  color: var(--texte-erreur);
+  background: var(--fond-erreur);
+}
+
+.issue h2 {
+  margin: 0;
+  font-size: 1.75rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.issue p {
+  margin: 0.375rem 0 0;
+  color: var(--texte);
+}
