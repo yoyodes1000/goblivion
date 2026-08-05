@@ -10,7 +10,7 @@
 // suivante) est piloté par le joueur — donc par l'UI, pas par le moteur.
 // Mais ce qu'une phase déclenche d'elle-même est une règle du jeu, et vit ici.
 
-import { avancerPhase, reinitialiserEtatsDePhase, estPerdue } from './partie.js';
+import { avancerPhase, terminerPhase, estPerdue } from './partie.js';
 import { avancerEnnemis, pisteEtPileVides } from './ennemi-avance.js';
 import { tousBossVaincus } from './combat-boss.js';
 
@@ -49,15 +49,15 @@ export function detruireEnnemisAuxPortes(partie) {
  * Entraînement mais un changement de mode) — sinon avance normalement au
  * cycle habituel via `avancerPhase`.
  *
- * Les deux chemins réinitialisent les états de phase : entrer en combat des
- * Boss reste un changement de phase, même s'il ne passe pas par le cycle.
+ * Les deux chemins terminent la phase en cours : entrer en combat des Boss
+ * reste un changement de phase, même s'il ne passe pas par le cycle.
  * @param {Partie} partie
  * @returns {Partie}
  */
 export function terminerPhaseEnnemiAvance(partie) {
   if (pisteEtPileVides(partie)) {
     return Object.freeze({
-      ...reinitialiserEtatsDePhase(detruireEnnemisAuxPortes(partie)),
+      ...terminerPhase(detruireEnnemisAuxPortes(partie)),
       phase: 'COMBAT_BOSS',
     });
   }

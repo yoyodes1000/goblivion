@@ -64,9 +64,17 @@ import { phaseSuivante } from './phases.js';
  */
 
 /**
- * Remet à zéro les états qui ne valent que le temps d'une phase
- * (`gardeDuCorpsEchange`, `cartesActivees`) ou d'un combat (`jetonsIgnores`,
- * `orBloque`).
+ * Termine une phase : les cartes en jeu rejoignent l'Hôpital, et les états qui
+ * ne valaient que le temps de la phase (`gardeDuCorpsEchange`,
+ * `cartesActivees`) ou du combat (`jetonsIgnores`, `orBloque`) retombent.
+ *
+ * Le vidage du Champ de bataille est une règle générale (p.7 : « à la fin de
+ * chaque phase, les cartes en jeu quittent le Champ de bataille pour
+ * l'Hôpital »), et non la conclusion d'un entraînement ou d'un combat. Il est
+ * donc le plus souvent sans effet — les deux rendent déjà leurs cartes en se
+ * concluant. Il attrape le cas qui restait : passer la phase sans conclure,
+ * après quoi la main tirée pour des ennemis qu'on n'a pas combattus repartait
+ * pour un tour.
  *
  * À appeler à CHAQUE changement de phase — y compris la bascule vers le combat
  * des Boss, qui ne passe pas par `avancerPhase` (voir `orchestration.js`).
@@ -75,9 +83,9 @@ import { phaseSuivante } from './phases.js';
  * @param {Partie} partie
  * @returns {Partie}
  */
-export function reinitialiserEtatsDePhase(partie) {
+export function terminerPhase(partie) {
   return Object.freeze({
-    ...partie,
+    ...viderChampDeBataille(partie),
     gardeDuCorpsEchange: false,
     cartesActivees: [],
     jetonsIgnores: false,
@@ -96,7 +104,7 @@ export function avancerPhase(partie) {
   const nouveauTour = phase === 'ENTRAINEMENT';
 
   return Object.freeze({
-    ...reinitialiserEtatsDePhase(partie),
+    ...terminerPhase(partie),
     phase,
     tour: nouveauTour ? partie.tour + 1 : partie.tour,
     // Le jeton d'entraînement se repose au TOUR, pas à la phase : il se libère
