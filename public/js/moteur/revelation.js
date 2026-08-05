@@ -73,17 +73,52 @@ export function revelerAuxPortes(partie, index, choix, rng) {
 }
 
 /**
- * Boucle de révélation du Combat (règles p.11 + p.20) : pour chaque ennemi aux
- * Portes, de gauche à droite, pioche ses cartes (toujours, même si déjà
- * révélé) puis révèle son action (voir `revelerAuxPortes`). Si une action
- * déclenche « l'ennemi avance », fait avancer la piste et reprend la boucle
- * depuis le début — de nouveaux ennemis peuvent arriver aux Portes et seront
- * traités au passage suivant. Termine naturellement : seules quelques cartes
- * précises déclenchent « l'ennemi avance », en stock fini et jamais renouvelé.
+ * L'ennemi qu'il reste à révéler : le plus à gauche des Portes qui ne l'est pas
+ * encore (règles p.11, étapes 1-2), ou `null` quand tous le sont.
  *
- * Ne prend pas de `choix` : aucune action REVELATION actuelle n'en a besoin
- * (OR et JETON_ENNEMI n'en consomment pas). Le jour où un gestionnaire SPECIAL
- * avec choix existera, cette boucle devra évoluer.
+ * `revele` sert ici de marqueur d'avancement, et c'est ce qui rend la
+ * révélation reprenable pas à pas : les nouveaux ennemis arrivés en cours de
+ * combat sont non révélés, donc ramassés d'eux-mêmes au tour de boucle suivant
+ * — la « reprise à l'étape 1 » des règles n'a pas à être codée.
+ * @param {Partie} partie
+ * @returns {number | null}
+ */
+export function prochainARevele(partie) {
+  const index = partie.portes.findIndex((e) => !e.revele);
+  return index === -1 ? null : index;
+}
+
+/**
+ * Pioche les cartes d'un ennemi des Portes, préalable à sa révélation.
+ *
+ * Séparé de `revelerAuxPortes` pour que l'appelant puisse s'intercaler : une
+ * action REVELATION qui réclame une cible (Gobelin vachelier, Horde de
+ * Gobelins, Sorcière troll) ne peut la désigner qu'une fois ces cartes vues.
+ * @param {Partie} partie
+ * @param {number} index
+ * @param {() => number} rng
+ * @returns {{ partie: Partie, reconstitutions: number }}
+ */
+export function piocherPourEnnemi(partie, index, rng) {
+  const ennemi = partie.portes[index];
+  if (!ennemi) throw new Error('Aucun ennemi à cet index des Portes');
+
+  return piocher(partie, ennemi.instance.type.cartes, rng);
+}
+
+/**
+ * Résout toute la révélation du Combat d'un trait : pour chaque ennemi non
+ * encore révélé, de gauche à droite, pioche ses cartes puis lance son action.
+ *
+ * Chaque ennemi n'est pioché QU'UNE FOIS, à sa révélation : la pioche est
+ * l'étape 1 des règles, indissociable du fait de révéler. Une version
+ * antérieure reprenait la boucle depuis le début après « l'ennemi avance » et
+ * repiochait pour les ennemis déjà traités.
+ *
+ * Ne prend pas de `choix` : elle ne convient donc qu'aux ennemis dont l'action
+ * n'en réclame aucun. Une interface qui laisse le joueur désigner ses cibles
+ * enchaîne plutôt `prochainARevele` / `piocherPourEnnemi` / `revelerAuxPortes`
+ * elle-même.
  * @param {Partie} partie
  * @param {() => number} rng
  * @returns {{ partie: Partie, reconstitutions: number }}
@@ -91,29 +126,17 @@ export function revelerAuxPortes(partie, index, choix, rng) {
 export function resoudreRevelation(partie, rng) {
   let etat = partie;
   let reconstitutions = 0;
-  let relancer = true;
 
-  while (relancer) {
-    relancer = false;
+  for (let index = prochainARevele(etat); index !== null; index = prochainARevele(etat)) {
+    const rPioche = piocherPourEnnemi(etat, index, rng);
+    etat = rPioche.partie;
+    reconstitutions += rPioche.reconstitutions;
 
-    for (let index = 0; index < etat.portes.length; index += 1) {
-      const ennemiActuel = etat.portes[index];
-      if (!ennemiActuel) throw new Error('Aucun ennemi à cet index des Portes');
+    const rRevelation = revelerAuxPortes(etat, index, [], rng);
+    etat = rRevelation.partie;
+    reconstitutions += rRevelation.reconstitutions;
 
-      const rPioche = piocher(etat, ennemiActuel.instance.type.cartes, rng);
-      etat = rPioche.partie;
-      reconstitutions += rPioche.reconstitutions;
-
-      const rRevelation = revelerAuxPortes(etat, index, [], rng);
-      etat = rRevelation.partie;
-      reconstitutions += rRevelation.reconstitutions;
-
-      if (rRevelation.ennemiAvance) {
-        etat = avancerEnnemis(etat);
-        relancer = true;
-        break;
-      }
-    }
+    if (rRevelation.ennemiAvance) etat = avancerEnnemis(etat);
   }
 
   return { partie: etat, reconstitutions };

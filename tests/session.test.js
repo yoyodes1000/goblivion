@@ -15,6 +15,7 @@ import {
   repondreDemande,
   annulerAction,
   passerPhase,
+  revelerProchainEnnemi,
 } from '../public/js/ui/session.js';
 
 const rng = () => creerRng(1);
@@ -171,4 +172,75 @@ test('aucune fonction n’altère la session reçue', () => {
   assert.equal(s.erreur, null);
   assert.equal(s.partie.phase, 'ENTRAINEMENT');
   assert.deepEqual(s.partie.cartesActivees, []);
+});
+
+// ── Révélation des ennemis, un par un ───────────────────────────────────────
+
+/**
+ * Un ennemi aux Portes, avec son éventuelle action REVELATION.
+ * @param {string} id
+ * @param {any[]} [effets]
+ * @returns {import('../public/js/moteur/partie.js').EnnemiSurPiste}
+ */
+function auxPortes(id, effets) {
+  const type = /** @type {any} */ ({
+    id, nom: id, force: 3, niveau: 'UNE_EPEE', cartes: 1,
+    actionsEnnemi: effets ? [{ declencheur: 'REVELATION', effets }] : [],
+    recompense: { nom: `Butin ${id}`, symbole: 'OBJET', force: 0, actions: [] },
+  });
+  return { instance: { instanceId: `${id}#e`, type }, revele: false, jetonBonus: 0 };
+}
+
+test('révéler un ennemi sans question pioche ses cartes et lance son action', () => {
+  const s = session({ portes: [auxPortes('gob', [{ type: 'OR', valeur: -2 }])] });
+  const apres = revelerProchainEnnemi(s, rng());
+
+  assert.equal(apres.enCours, null);
+  assert.equal(apres.partie.portes[0]?.revele, true);
+  assert.equal(apres.partie.ressources, s.partie.ressources - 2);
+  assert.equal(apres.partie.champDeBataille.length, 1); // sa carte piochée
+});
+
+test('un ennemi dont l’action réclame une cible ouvre une question', () => {
+  const paysan = bleu('fermier');
+  const s = session({
+    portes: [auxPortes('horde-de-gobelins', [{ type: 'SPECIAL', texte: 'envoyer un Paysan à l’Hôpital' }])],
+    champDeBataille: [paysan],
+  });
+
+  const ouverte = revelerProchainEnnemi(s, rng());
+  assert.equal(ouverte.enCours?.genre, 'REVELATION');
+  assert.equal(demandeCourante(ouverte)?.genre, 'CARTES');
+
+  const apres = repondreDemande(ouverte, ['fermier#x'], rng());
+  assert.equal(apres.enCours, null);
+  assert.ok(apres.partie.hopital.some((c) => c.instanceId === 'fermier#x'));
+  assert.equal(apres.partie.portes[0]?.revele, true);
+});
+
+test('les ennemis se révèlent de gauche à droite, un par appel', () => {
+  const s = session({ portes: [auxPortes('a'), auxPortes('b')] });
+
+  const un = revelerProchainEnnemi(s, rng());
+  assert.equal(un.partie.portes[0]?.revele, true);
+  assert.equal(un.partie.portes[1]?.revele, false);
+
+  const deux = revelerProchainEnnemi(un, rng());
+  assert.equal(deux.partie.portes[1]?.revele, true);
+});
+
+test('plus rien à révéler donne un message', () => {
+  const s = revelerProchainEnnemi(session({ portes: [auxPortes('gob')] }), rng());
+  assert.match(revelerProchainEnnemi(s, rng()).erreur ?? '', /sont révélés/);
+});
+
+test('« l’ennemi avance » déclenché par une révélation fait glisser la piste', () => {
+  const s = session({
+    portes: [auxPortes('commandant', [{ type: 'ENNEMI_AVANCE' }])],
+    pisteEnnemi: [null, null, null],
+  });
+  const apres = revelerProchainEnnemi(s, rng());
+
+  assert.equal(apres.partie.pisteEnnemi.filter(Boolean).length, 1);
+  assert.equal(apres.partie.portes[0]?.revele, true);
 });

@@ -5,7 +5,12 @@ import assert from 'node:assert/strict';
 
 import { creerRng } from '../public/js/moteur/aleatoire.js';
 import { miseEnPlace } from '../public/js/moteur/mise-en-place.js';
-import { revelerAuxPortes, resoudreRevelation } from '../public/js/moteur/revelation.js';
+import {
+  revelerAuxPortes,
+  resoudreRevelation,
+  prochainARevele,
+  piocherPourEnnemi,
+} from '../public/js/moteur/revelation.js';
 
 /**
  * Un ennemi de test aux Portes, avec ses cartes à piocher et son éventuelle
@@ -301,4 +306,42 @@ test('resoudreRevelation : « l’ennemi avance » fait avancer la piste et repr
   assert.equal(partie.portes[1]?.instance.instanceId, 'recrue#e');
   assert.equal(partie.portes[1]?.revele, true);
   assert.equal(partie.ressources, p.ressources - 1); // l'effet OR de la recrue, une seule fois
+});
+
+// ── Progression pas à pas ───────────────────────────────────────────────────
+
+test('prochainARevele rend l’ennemi non révélé le plus à gauche', () => {
+  const p = scenario([ennemi('a', undefined, { revele: true }), ennemi('b'), ennemi('c')]);
+  assert.equal(prochainARevele(p), 1);
+});
+
+test('prochainARevele rend null quand tout est révélé', () => {
+  const p = scenario([ennemi('a', undefined, { revele: true })]);
+  assert.equal(prochainARevele(p), null);
+});
+
+test('chaque ennemi n’est pioché qu’une fois, malgré une relance', () => {
+  // Le Commandant fait avancer l'ennemi : une version antérieure reprenait la
+  // boucle à zéro et repiochait pour lui.
+  const commandant = ennemi('commandant', [{ type: 'JETON_ENNEMI', valeur: 2 }, { type: 'ENNEMI_AVANCE' }]);
+  const recrue = ennemi('recrue', [{ type: 'OR', valeur: -1 }]);
+  const p = scenario([commandant], {
+    pisteEnnemi: [null, null, recrue],
+    pileEnnemi: [],
+    champDeBataille: [],
+  });
+
+  const { partie } = resoudreRevelation(p, creerRng(1));
+
+  // 1 carte pour le Commandant + 1 pour la recrue, pas 3.
+  assert.equal(partie.champDeBataille.length, 2);
+  assert.equal(partie.chateau.length, p.chateau.length - 2);
+});
+
+test('piocherPourEnnemi pioche le compte de l’ennemi visé, sans le révéler', () => {
+  const p = scenario([ennemi('gob', undefined, { cartes: 3 })], { champDeBataille: [] });
+  const { partie } = piocherPourEnnemi(p, 0, creerRng(1));
+
+  assert.equal(partie.champDeBataille.length, 3);
+  assert.equal(partie.portes[0]?.revele, false); // la révélation est une étape à part
 });
