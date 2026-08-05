@@ -26,6 +26,7 @@ import { dores } from '../moteur/cartes/index.js';
 import { prochainARevele, piocherPourEnnemi, revelerAuxPortes } from '../moteur/revelation.js';
 import { avancerEnnemis } from '../moteur/ennemi-avance.js';
 import { combatGagne, forceAlliee, forceEnnemi, forceEnnemisPortes, resoudreCombat } from '../moteur/combat.js';
+import { piocherPourBoss, revelerBoss, resoudreCombatBoss } from '../moteur/combat-boss.js';
 import {
   demarrerCollecte,
   demarrerCollectePouvoir,
@@ -46,7 +47,7 @@ import {
  * imbriquer. ENTRAINEMENT, lui, n'exécute aucun effet — il demande une OPTION,
  * la carte à sacrifier, et sa question est donc fabriquée telle quelle.
  * @typedef {object} ActionEnCours
- * @property {'PIVOTER' | 'POUVOIR' | 'ENTRAINEMENT' | 'REVELATION' | 'COMBAT'} genre
+ * @property {'PIVOTER' | 'POUVOIR' | 'ENTRAINEMENT' | 'REVELATION' | 'REVELATION_BOSS' | 'COMBAT'} genre
  * @property {string} libelle              Ce qu'on est en train de jouer, pour l'afficher.
  * @property {string} [instanceId]         La carte activée (PIVOTER seulement).
  * @property {string} [doreId]             La Doré convoitée (ENTRAINEMENT seulement).
@@ -60,6 +61,7 @@ import {
  * @property {Partie} partie
  * @property {ActionEnCours | null} enCours   Aucune action ouverte quand `null`.
  * @property {string | null} erreur           Dernier refus du moteur, à afficher.
+ * @property {boolean} tentativeBoss          Tentative de combat de Boss engagée : voir `engagerLeBoss`.
  */
 
 /**
@@ -67,7 +69,7 @@ import {
  * @returns {Session}
  */
 export function nouvelleSession(partie) {
-  return Object.freeze({ partie, enCours: null, erreur: null });
+  return Object.freeze({ partie, enCours: null, erreur: null, tentativeBoss: false });
 }
 
 /**
@@ -99,7 +101,14 @@ function executer(session, action, rng) {
       // « L'ennemi avance » déclenché par une révélation fait glisser la piste :
       // les nouveaux venus, non révélés, seront ramassés au tour suivant.
       const partie = resultat.ennemiAvance ? avancerEnnemis(resultat.partie) : resultat.partie;
-      return Object.freeze({ partie, enCours: null, erreur: null });
+      return Object.freeze({ ...session, partie, enCours: null, erreur: null });
+    }
+
+    // L'action d'un Boss ne peut pas faire avancer l'ennemi : la piste est vide
+    // en mode Boss, et un Château vidé s'y paie en ressources (`revelerBoss`).
+    if (action.genre === 'REVELATION_BOSS') {
+      const partie = revelerBoss(session.partie, choix, rng);
+      return Object.freeze({ ...session, partie, enCours: null, erreur: null });
     }
 
     const { partie } =
@@ -107,7 +116,7 @@ function executer(session, action, rng) {
         ? activerPouvoir(session.partie, choix, rng)
         : activerPivoter(session.partie, action.instanceId ?? '', choix, rng);
 
-    return Object.freeze({ partie, enCours: null, erreur: null });
+    return Object.freeze({ ...session, partie, enCours: null, erreur: null });
   } catch (erreur) {
     return Object.freeze({ ...session, enCours: null, erreur: messageDe(erreur) });
   }
@@ -289,7 +298,7 @@ export function resoudreLeCombat(session, rng) {
 
   if (combatGagne(session.partie)) {
     const { partie } = resoudreCombat(session.partie);
-    return Object.freeze({ partie, enCours: null, erreur: null });
+    return Object.freeze({ ...session, partie, enCours: null, erreur: null });
   }
 
   const disponible = forceAlliee(session.partie);
@@ -315,6 +324,84 @@ export function resoudreLeCombat(session, rng) {
   };
 
   return Object.freeze({ ...session, enCours, erreur: null });
+}
+
+/**
+ * Engage une tentative contre le Boss en tête de file : pioche le nombre de
+ * cartes qu'il exige, puis lance son action — en s'arrêtant si elle réclame une
+ * cible.
+ *
+ * La comparaison des Forces ne suit PAS. Les règles laissent le joueur jouer ses
+ * actions entre la pioche et le verdict (p.11, étape 3) ; c'est
+ * `resoudreLeCombatBoss` qui conclut. D'où deux commandes ici, là où
+ * `combattreBoss` n'en offrirait qu'une — et c'est précisément pour cela que le
+ * moteur exporte les trois étapes séparément.
+ *
+ * La pioche est ENGAGÉE dès ce moment : `tentativeBoss` s'en souvient, et une
+ * seconde pioche est refusée tant que le combat n'est pas résolu.
+ * @param {Session} session
+ * @param {() => number} rng
+ * @returns {Session}
+ */
+export function engagerLeBoss(session, rng) {
+  const finie = refusSiTerminee(session);
+  if (finie) return finie;
+
+  if (session.enCours) {
+    return Object.freeze({ ...session, erreur: 'Termine l’action en cours d’abord' });
+  }
+  if (session.partie.phase !== 'COMBAT_BOSS') {
+    return Object.freeze({ ...session, erreur: 'Le combat des Boss n’a pas commencé' });
+  }
+  if (session.tentativeBoss) {
+    return Object.freeze({ ...session, erreur: 'Le Boss est déjà engagé : résous le combat' });
+  }
+
+  // Une file vide vaudrait victoire, déjà refusée plus haut : ce garde-fou
+  // écarte le cas pour le vérificateur de types, pas pour le joueur.
+  const [boss] = session.partie.boss;
+  if (!boss) return Object.freeze({ ...session, erreur: 'Aucun Boss à affronter' });
+
+  const partie = piocherPourBoss(session.partie, rng);
+  const action = boss.type.actions.find((a) => a.declencheur === 'REVELATION');
+
+  return ouvrir(
+    Object.freeze({ ...session, partie, tentativeBoss: true, erreur: null }),
+    {
+      genre: 'REVELATION_BOSS',
+      libelle: boss.type.nom,
+      collecte: demarrerCollecte(partie, action?.effets ?? [], { typeId: boss.type.id }),
+    },
+    rng,
+  );
+}
+
+/**
+ * Compare les Forces et conclut la tentative contre le Boss.
+ *
+ * Rien à demander au joueur, quelle qu'en soit l'issue : un Boss vaincu quitte
+ * la file, un Boss victorieux coûte la différence en ressources et reste à
+ * affronter. Il n'y a pas de Force à répartir — on n'affronte qu'un Boss à la
+ * fois (règles p.15).
+ *
+ * La tentative se referme dans les deux cas : le Champ de bataille est vidé par
+ * le moteur, et la suivante repartira d'une pioche neuve.
+ * @param {Session} session
+ * @returns {Session}
+ */
+export function resoudreLeCombatBoss(session) {
+  const finie = refusSiTerminee(session);
+  if (finie) return finie;
+
+  if (session.enCours) {
+    return Object.freeze({ ...session, erreur: 'Termine l’action en cours d’abord' });
+  }
+  if (!session.tentativeBoss) {
+    return Object.freeze({ ...session, erreur: 'Affronte d’abord le Boss : ses cartes ne sont pas piochées' });
+  }
+
+  const { partie } = resoudreCombatBoss(session.partie);
+  return Object.freeze({ ...session, partie, enCours: null, erreur: null, tentativeBoss: false });
 }
 
 /**
@@ -362,7 +449,7 @@ export function commencerEntrainement(session, doreId, rng) {
     },
   };
 
-  return Object.freeze({ partie, erreur: null, enCours });
+  return Object.freeze({ ...session, partie, erreur: null, enCours });
 }
 
 /**
@@ -385,7 +472,7 @@ export function repondreDemande(session, valeurs, rng) {
     try {
       const cibles = valeurs.map(Number);
       const { partie } = resoudreCombat(session.partie, cibles);
-      return Object.freeze({ partie, enCours: null, erreur: null });
+      return Object.freeze({ ...session, partie, enCours: null, erreur: null });
     } catch (erreur) {
       // Total ciblé trop élevé : la question reste ouverte pour se corriger.
       return Object.freeze({ ...session, erreur: messageDe(erreur) });
@@ -401,7 +488,7 @@ export function repondreDemande(session, valeurs, rng) {
         { doreId: action.doreId ?? '', sacrifieInstanceId: sacrifieInstanceId ?? '' },
         rng,
       );
-      return Object.freeze({ partie, enCours: null, erreur: null });
+      return Object.freeze({ ...session, partie, enCours: null, erreur: null });
     } catch (erreur) {
       // La question reste ouverte : un refus (mauvais symbole, or insuffisant)
       // doit pouvoir se corriger en désignant une autre carte, pas coûter
@@ -426,6 +513,7 @@ export function repondreDemande(session, valeurs, rng) {
 export function annulerAction(session) {
   if (session.enCours?.genre === 'ENTRAINEMENT') {
     return Object.freeze({
+      ...session,
       partie: renoncerEntrainement(session.partie),
       enCours: null,
       erreur: null,
@@ -453,5 +541,10 @@ export function passerPhase(session) {
     return Object.freeze({ ...session, erreur: 'Le combat des Boss ne mène à aucune autre phase' });
   }
 
-  return Object.freeze({ partie: passerALaPhaseSuivante(session.partie), enCours: null, erreur: null });
+  return Object.freeze({
+    ...session,
+    partie: passerALaPhaseSuivante(session.partie),
+    enCours: null,
+    erreur: null,
+  });
 }

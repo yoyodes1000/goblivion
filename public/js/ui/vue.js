@@ -107,6 +107,16 @@ const DOS_ENNEMI = 'dos-ennemi';
  */
 
 /**
+ * Le Boss que l'on affronte, une fois le combat des Boss commencé.
+ * @typedef {object} BossVue
+ * @property {string} nom
+ * @property {number} force
+ * @property {number} cartes     Cartes à piocher pour l'affronter.
+ * @property {string[]} actions  Textes de ses actions, PASSIF compris.
+ * @property {ImageVue} image
+ */
+
+/**
  * @typedef {object} PileMarcheVue
  * @property {string} typeId
  * @property {string} nom
@@ -139,6 +149,7 @@ const DOS_ENNEMI = 'dos-ennemi';
  * @property {number} ennemisARevele   Combien restent à révéler aux Portes.
  * @property {boolean} combatResoluble Tous révélés, le combat peut se conclure.
  * @property {number} bossRestants
+ * @property {BossVue | null} boss   Le Boss affronté ; `null` hors combat des Boss.
  * @property {PileMarcheVue[]} marche
  */
 
@@ -224,6 +235,33 @@ function ennemiVue(ennemi) {
 }
 
 /**
+ * Le Boss affronté, ou `null` hors du combat des Boss.
+ *
+ * SEULE entorse à la règle d'information cachée de ce fichier — et elle vient
+ * des règles elles-mêmes (p.15) : « on révèle et affronte UN Boss à la fois ».
+ * Celui qu'on combat est retourné face visible, sans quoi le joueur ne saurait
+ * ni quelle Force atteindre ni quelles cartes activer. Les suivants restent ce
+ * qu'ils étaient : un nombre (`bossRestants`).
+ * @param {Partie} partie
+ * @returns {BossVue | null}
+ */
+function bossAffronte(partie) {
+  const boss = partie.phase === 'COMBAT_BOSS' ? partie.boss[0] : undefined;
+  if (!boss) return null;
+
+  return {
+    nom: boss.type.nom,
+    force: boss.type.force,
+    cartes: boss.type.cartes,
+    // Comme pour les cartes alliées : une action sans libellé est omise plutôt
+    // que d'afficher un trou. Le PASSIF y figure — il ne s'exécute pas, mais
+    // c'est lui qui explique une force alliée plus basse qu'attendu.
+    actions: boss.type.actions.flatMap((a) => (a.texte ? [a.texte] : [])),
+    image: { fichier: boss.type.id, moitie: null },
+  };
+}
+
+/**
  * Traduit une pile du marché Doré. Le nom et la force viennent des données de
  * la carte, le reste de l'état de la partie.
  *
@@ -289,6 +327,7 @@ export function construireVue(partie) {
 
     // Les Boss sont faces cachées jusqu'à être affrontés : leur nombre suffit.
     bossRestants: partie.boss.length,
+    boss: bossAffronte(partie),
 
     marche: partie.marcheDore.map((pile) => pileMarcheVue(pile, partie)),
   };
