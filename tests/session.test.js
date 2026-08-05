@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import { creerRng } from '../public/js/moteur/aleatoire.js';
 import { miseEnPlace } from '../public/js/moteur/mise-en-place.js';
 import { paysansBase } from '../public/js/moteur/cartes/index.js';
+import { bosses } from '../public/js/moteur/cartes/bosses.js';
 import {
   nouvelleSession,
   demandeCourante,
@@ -18,6 +19,8 @@ import {
   passerPhase,
   revelerProchainEnnemi,
   resoudreLeCombat,
+  engagerLeBoss,
+  resoudreLeCombatBoss,
 } from '../public/js/ui/session.js';
 
 const rng = () => creerRng(1);
@@ -334,6 +337,119 @@ test('combattre est refusé tant qu’un ennemi n’est pas révélé', () => {
 test('combattre sans ennemi aux Portes n’a pas de sens', () => {
   const s = session({ phase: /** @type {any} */ ('COMBAT'), portes: [] });
   assert.match(resoudreLeCombat(s, rng()).erreur ?? '', /pas de combat/);
+});
+
+// ── Combat des Boss ─────────────────────────────────────────────────────────
+
+/**
+ * Un vrai Boss du jeu : c'est sa Force, son nombre de cartes et son action
+ * réels qu'on éprouve, comme les Bleu de `bleu()`.
+ * @param {string} id
+ * @returns {import('../public/js/moteur/partie.js').InstanceBoss}
+ */
+function bossReel(id) {
+  const type = bosses.find((b) => b.id === id);
+  if (!type) throw new Error(`Boss inconnu : ${id}`);
+  return { instanceId: `${id}#b`, type };
+}
+
+/**
+ * Une session en mode « combat des Boss ». Le Château est vide par défaut : la
+ * pioche du Boss ne ramène alors rien, et la Force en jeu reste exactement
+ * celle qu'on lui donne.
+ * @param {string} bossId
+ * @param {Partial<import('../public/js/moteur/partie.js').Partie>} [overrides]
+ */
+function sessionBoss(bossId, overrides = {}) {
+  return session({
+    phase: /** @type {any} */ ('COMBAT_BOSS'),
+    boss: [bossReel(bossId)],
+    chateau: [],
+    ...overrides,
+  });
+}
+
+test('affronter un Boss pioche ses cartes et lance son action', () => {
+  // Troll géant : 5 cartes à piocher, action « -1 or ». Le Château n'en a que 2.
+  const s = sessionBoss('troll-geant', { chateau: [bleu('fermier'), bleu('vieux')] });
+  const apres = engagerLeBoss(s, rng());
+
+  assert.equal(apres.enCours, null);
+  assert.equal(apres.tentativeBoss, true);
+  assert.equal(apres.partie.champDeBataille.length, 2);
+  assert.equal(apres.partie.ressources, s.partie.ressources - 1);
+});
+
+test('un Boss dont l’action cible ouvre une question, et la tentative reste ouverte', () => {
+  // Dragon serpent : « envoie ton Paysan le plus fort à l'Hôpital ».
+  const s = sessionBoss('dragon-serpent', { champDeBataille: [bleu('fermier')] });
+  const ouverte = engagerLeBoss(s, rng());
+
+  assert.equal(ouverte.enCours?.genre, 'REVELATION_BOSS');
+  assert.equal(ouverte.enCours?.libelle, 'Dragon serpent');
+  assert.equal(demandeCourante(ouverte)?.genre, 'CARTES');
+
+  const apres = repondreDemande(ouverte, ['fermier#x'], rng());
+  assert.equal(apres.enCours, null);
+  assert.ok(apres.partie.hopital.some((c) => c.instanceId === 'fermier#x'));
+  assert.equal(apres.tentativeBoss, true); // il reste à comparer les Forces
+});
+
+test('affronter un Boss hors du combat des Boss est refusé', () => {
+  assert.match(engagerLeBoss(session(), rng()).erreur ?? '', /n’a pas commencé/);
+});
+
+test('le Boss ne se pioche qu’une fois par tentative', () => {
+  const engagee = engagerLeBoss(sessionBoss('troll-geant'), rng());
+  const apres = engagerLeBoss(engagee, rng());
+
+  assert.match(apres.erreur ?? '', /déjà engagé/);
+  assert.equal(apres.partie, engagee.partie); // aucune seconde pioche
+});
+
+test('résoudre sans avoir affronté le Boss est refusé', () => {
+  assert.match(resoudreLeCombatBoss(sessionBoss('reine-troll')).erreur ?? '', /Affronte d’abord/);
+});
+
+test('victoire : le Boss quitte la file et la tentative se referme', () => {
+  // Reine troll : Force 12, et son PASSIF n'ignore que les Objets.
+  const s = sessionBoss('reine-troll', {
+    champDeBataille: [{ ...bleu('gentilhomme'), jetonBonus: 10 }], // 2 + 10 = 12
+  });
+  const apres = resoudreLeCombatBoss(engagerLeBoss(s, rng()));
+
+  assert.equal(apres.tentativeBoss, false);
+  assert.equal(apres.partie.boss.length, 0);
+  assert.equal(apres.partie.ressources, s.partie.ressources); // un Boss ne rapporte rien
+  assert.equal(apres.partie.champDeBataille.length, 0);
+});
+
+test('défaite : on paie la différence, le Boss reste à affronter', () => {
+  const s = sessionBoss('reine-troll', { champDeBataille: [bleu('gentilhomme')] }); // force 2
+  const apres = resoudreLeCombatBoss(engagerLeBoss(s, rng()));
+
+  assert.equal(apres.tentativeBoss, false); // on peut retenter
+  assert.equal(apres.partie.boss.length, 1);
+  assert.equal(apres.partie.ressources, s.partie.ressources - 10); // 12 - 2
+  assert.equal(apres.partie.champDeBataille.length, 0); // pioche neuve au prochain essai
+});
+
+test('les Boss s’affrontent l’un après l’autre, jusqu’à la victoire', () => {
+  const s = sessionBoss('reine-troll', {
+    boss: [bossReel('reine-troll'), bossReel('troll-geant')], // Force 12 puis 22
+    champDeBataille: [{ ...bleu('gentilhomme'), jetonBonus: 20 }], // 2 + 20 = 22
+  });
+
+  const premier = resoudreLeCombatBoss(engagerLeBoss(s, rng()));
+  assert.equal(premier.partie.boss.length, 1);
+
+  // Deuxième tentative : le Château étant vide, la pioche se reconstitue depuis
+  // l'Hôpital — ce qui coûte 2 ressources en mode Boss — et ramène la carte.
+  const second = resoudreLeCombatBoss(engagerLeBoss(premier, rng()));
+
+  assert.equal(second.partie.boss.length, 0);
+  assert.equal(second.partie.ressources, s.partie.ressources - 3); // 2 de Château vide, 1 d'action
+  assert.match(passerPhase(second).erreur ?? '', /gagnée/);
 });
 
 // ── Plus rien ne se joue une fois la partie finie ───────────────────────────

@@ -214,7 +214,10 @@ function rendreEntete(vue) {
     ['Ressources', `${vue.ressources} or`],
     ['Pouvoir', vue.pouvoirDisponible ? 'disponible' : 'déjà utilisé'],
     ['Force alliée', String(vue.forceAlliee)],
-    ['Force ennemie', String(vue.forceEnnemie)],
+    // La force ennemie est celle des Portes, vides en mode Boss : l'afficher y
+    // annoncerait un « 0 » rassurant alors qu'un Boss est en face. Sa force à
+    // lui est dans sa propre section, et sur le bouton qui conclut le combat.
+    ...(vue.boss ? [] : [/** @type {[string, string]} */ (['Force ennemie', String(vue.forceEnnemie)])]),
   ];
 
   for (const [terme, valeur] of lignes) {
@@ -226,7 +229,7 @@ function rendreEntete(vue) {
 }
 
 /**
- * La piste ennemie : 4 cases, de la pioche (case 1) aux Portes (case 4).
+ * La piste ennemie : 3 cases, de la pioche (case 1) aux Portes (après la case 3).
  * @param {VuePartie} vue
  * @returns {HTMLElement}
  */
@@ -248,6 +251,36 @@ function rendrePiste(vue) {
     liste.append(item);
   });
 
+  section.append(liste);
+  return section;
+}
+
+/**
+ * Le Boss affronté : son scan, la Force à atteindre, ce qu'il coûte de cartes
+ * et ce qu'il fait. Rendu comme un ennemi — c'en est un, en plus gros.
+ * @param {import('./vue.js').BossVue} boss
+ * @returns {HTMLElement}
+ */
+function rendreBoss(boss) {
+  const section = element('section', 'zone');
+  section.append(element('h2', undefined, 'Boss affronté'));
+
+  const item = element('li', 'ennemi');
+  item.append(
+    rendreImage(boss.image),
+    element('span', 'ennemi-nom', boss.nom),
+    element('span', 'ennemi-force', `Force ${boss.force}`),
+    element('span', 'ennemi-niveau', `${nombreDeCartes(boss.cartes)} à piocher`),
+  );
+
+  if (boss.actions.length > 0) {
+    const actions = element('ul', 'carte-actions');
+    for (const texte of boss.actions) actions.append(element('li', undefined, texte));
+    item.append(actions);
+  }
+
+  const liste = element('ul', 'cartes');
+  liste.append(item);
   section.append(liste);
   return section;
 }
@@ -407,19 +440,25 @@ function rendreIssue(issue) {
  * Les commandes qui ne dépendent d'aucune carte.
  * @param {VuePartie} vue
  * @param {boolean} actionOuverte
+ * @param {boolean} tentativeBoss   Le Boss est engagé : il reste à comparer les Forces.
  * @returns {HTMLElement}
  */
-function rendreCommandes(vue, actionOuverte) {
+function rendreCommandes(vue, actionOuverte, tentativeBoss) {
   const section = element('section', 'commandes');
   section.append(element('h2', undefined, 'Commandes'));
 
   const pouvoir = bouton(`Pouvoir : ${vue.roiReine}`, 'pouvoir');
   pouvoir.disabled = !vue.pouvoirDisponible || actionOuverte;
 
-  const phase = bouton('Phase suivante', 'phase');
-  phase.disabled = actionOuverte;
+  // Le combat des Boss ne mène à aucune autre phase : le bouton n'y aurait
+  // aucune suite, autant ne pas le montrer.
+  if (!vue.boss) {
+    const phase = bouton('Phase suivante', 'phase');
+    phase.disabled = actionOuverte;
+    section.append(phase);
+  }
 
-  section.append(phase, pouvoir);
+  section.append(pouvoir);
 
   // La révélation se fait ennemi par ennemi : le joueur voit chaque pioche et
   // chaque action avant de passer au suivant.
@@ -435,6 +474,16 @@ function rendreCommandes(vue, actionOuverte) {
     section.append(combattre);
   }
 
+  // Une tentative contre un Boss se joue en deux temps : on l'affronte (pioche
+  // et action du Boss), on joue ses cartes, puis on compare les Forces.
+  if (vue.boss) {
+    const tentative = tentativeBoss
+      ? bouton(`Résoudre le combat (${vue.forceAlliee} contre ${vue.boss.force})`, 'resoudre-boss')
+      : bouton(`Affronter ${vue.boss.nom} (piocher ${nombreDeCartes(vue.boss.cartes)})`, 'engager-boss');
+    tentative.disabled = actionOuverte;
+    section.append(tentative);
+  }
+
   return section;
 }
 
@@ -444,7 +493,8 @@ function rendreCommandes(vue, actionOuverte) {
  * @typedef {object} EtatEcran
  * @property {import('./collecte.js').Demande | null} demande
  * @property {string | null} erreur
- * @property {string} [contexte]   Ce qu'on est en train de jouer.
+ * @property {boolean} tentativeBoss   Le Boss est engagé, il reste à conclure.
+ * @property {string} [contexte]       Ce qu'on est en train de jouer.
  */
 
 /**
@@ -464,8 +514,9 @@ export function rendrePlateau(racine, vue, ecran) {
     ...(vue.issue ? [rendreIssue(vue.issue)] : []),
     ...(ecran.erreur ? [rendreErreur(ecran.erreur)] : []),
     ...(ecran.demande && !termine ? [rendreDemande(ecran.demande, ecran.contexte ?? 'Action')] : []),
-    ...(termine ? [] : [rendreCommandes(vue, ecran.demande !== null)]),
+    ...(termine ? [] : [rendreCommandes(vue, ecran.demande !== null, ecran.tentativeBoss)]),
     rendreEntete(vue),
+    ...(vue.boss ? [rendreBoss(vue.boss)] : []),
     rendreSectionListe(
       'Aux Portes',
       vue.portes.map(rendreEnnemi),

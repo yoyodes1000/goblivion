@@ -98,7 +98,27 @@ test('les Boss ne sortent qu’en nombre : ils sont faces cachées', () => {
   const vue = construireVue(p);
 
   assert.equal(vue.bossRestants, 2);
+  assert.equal(vue.boss, null);
   assert.equal(JSON.stringify(vue).includes('Reine troll'), false);
+});
+
+test('le Boss affronté est révélé, ceux d’après restent cachés', () => {
+  // Règles p.15 : « on révèle et affronte UN Boss à la fois ». Sans sa Force,
+  // le joueur ne saurait pas quoi activer.
+  const p = scenario({
+    phase: /** @type {any} */ ('COMBAT_BOSS'),
+    boss: [bossReel('reine-troll'), bossReel('demon')],
+  });
+  const vue = construireVue(p);
+
+  assert.equal(vue.boss?.nom, 'Reine troll');
+  assert.equal(vue.boss?.force, 12);
+  assert.equal(vue.boss?.cartes, 6);
+  assert.deepEqual(vue.boss?.actions, ['Ignore la force des Objets']);
+  assert.deepEqual(vue.boss?.image, { fichier: 'reine-troll', moitie: null });
+
+  assert.equal(vue.bossRestants, 2);
+  assert.equal(JSON.stringify(vue).includes('Démon'), false);
 });
 
 // ── Forces affichées ────────────────────────────────────────────────────────

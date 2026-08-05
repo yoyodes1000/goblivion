@@ -17,6 +17,8 @@ import {
   commencerEntrainement,
   revelerProchainEnnemi,
   resoudreLeCombat,
+  engagerLeBoss,
+  resoudreLeCombatBoss,
   repondreDemande,
   annulerAction,
   passerPhase,
@@ -55,6 +57,7 @@ function afficher() {
   rendrePlateau(racine, construireVue(session.partie), {
     demande,
     erreur: session.erreur,
+    tentativeBoss: session.tentativeBoss,
     ...(session.enCours ? { contexte: session.enCours.libelle } : {}),
   });
 
@@ -96,6 +99,12 @@ racine.addEventListener('click', (evenement) => {
       break;
     case 'combattre':
       appliquer(resoudreLeCombat(session, rng));
+      break;
+    case 'engager-boss':
+      appliquer(engagerLeBoss(session, rng));
+      break;
+    case 'resoudre-boss':
+      appliquer(resoudreLeCombatBoss(session));
       break;
     case 'phase':
       appliquer(passerPhase(session));
