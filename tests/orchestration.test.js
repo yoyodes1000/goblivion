@@ -11,6 +11,7 @@ import {
   detruireEnnemisAuxPortes,
   terminerPhaseEnnemiAvance,
   appliquerChateauVide,
+  passerALaPhaseSuivante,
 } from '../public/js/moteur/orchestration.js';
 
 /** @returns {import('../public/js/moteur/partie.js').EnnemiSurPiste} */
@@ -98,4 +99,58 @@ test('appliquerChateauVide : sans reconstitution, l’état est inchangé', () =
 test('appliquerChateauVide : sans effet pendant le combat des Boss, qui paie en ressources', () => {
   const p = scenario({ phase: /** @type {any} */ ('COMBAT_BOSS') });
   assert.equal(appliquerChateauVide(p, 3), p);
+});
+
+// Ce que la phase impose d'elle-même (règles p.10).
+
+test('entrer dans L’Ennemi Avance fait glisser les ennemis d’une case', () => {
+  const p = scenario({ phase: /** @type {any} */ ('ENTRAINEMENT') });
+  assert.equal(p.pisteEnnemi.filter(Boolean).length, 0);
+
+  const partie = passerALaPhaseSuivante(p);
+
+  assert.equal(partie.phase, 'ENNEMI_AVANCE');
+  assert.equal(partie.pisteEnnemi.filter(Boolean).length, 1);
+  assert.equal(partie.pileEnnemi.length, p.pileEnnemi.length - 1);
+});
+
+test('un tour complet ne fait avancer l’ennemi qu’une fois', () => {
+  let p = scenario({ phase: /** @type {any} */ ('ENTRAINEMENT') });
+  for (const attendue of ['ENNEMI_AVANCE', 'COMBAT', 'ENTRAINEMENT']) {
+    p = passerALaPhaseSuivante(p);
+    assert.equal(p.phase, attendue);
+  }
+  assert.equal(p.pisteEnnemi.filter(Boolean).length, 1); // une seule avancée sur le tour
+});
+
+test('quatre tours amènent le premier ennemi aux Portes', () => {
+  // 3 cases de piste : la 4e avancée fait entrer le premier ennemi aux Portes.
+  let p = scenario({ phase: /** @type {any} */ ('ENTRAINEMENT') });
+  for (let tour = 0; tour < 4; tour += 1) {
+    for (let i = 0; i < 3; i += 1) p = passerALaPhaseSuivante(p);
+  }
+
+  assert.equal(p.portes.length, 1);
+  assert.equal(p.pisteEnnemi.filter(Boolean).length, 3);
+});
+
+test('depuis L’Ennemi Avance, on avance vers le Combat sans glisser une seconde fois', () => {
+  const p = scenario({ phase: /** @type {any} */ ('ENNEMI_AVANCE') });
+  const partie = passerALaPhaseSuivante(p);
+
+  assert.equal(partie.phase, 'COMBAT');
+  assert.deepEqual(partie.pisteEnnemi, p.pisteEnnemi);
+});
+
+test('pile et piste vides : la bascule vers les Boss reste prioritaire', () => {
+  const p = scenario({
+    phase: /** @type {any} */ ('ENNEMI_AVANCE'),
+    pileEnnemi: [],
+    pisteEnnemi: [null, null, null],
+    portes: [ennemiAuxPortes()],
+  });
+
+  const partie = passerALaPhaseSuivante(p);
+  assert.equal(partie.phase, 'COMBAT_BOSS');
+  assert.equal(partie.portes.length, 0);
 });

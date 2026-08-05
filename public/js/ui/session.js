@@ -12,8 +12,7 @@
 // message dans la session. Un refus (« Gobelin vachelier : une seule cible
 // attendue ») est une information à montrer au joueur, pas un plantage.
 
-import { avancerPhase } from '../moteur/partie.js';
-import { terminerPhaseEnnemiAvance } from '../moteur/orchestration.js';
+import { passerALaPhaseSuivante } from '../moteur/orchestration.js';
 import { activerPivoter } from '../moteur/pivoter.js';
 import { activerPouvoir } from '../moteur/pouvoir.js';
 import {
@@ -188,9 +187,10 @@ export function annulerAction(session) {
 }
 
 /**
- * Passe à la phase suivante. Depuis « L'Ennemi Avance », délègue à
- * `terminerPhaseEnnemiAvance`, seul à savoir basculer vers le combat des Boss.
- * Refuse pendant le combat des Boss : on n'en sort plus.
+ * Passe à la phase suivante. Le moteur décide de ce que la nouvelle phase
+ * entraîne — glissement des ennemis, bascule vers les Boss : ce sont des
+ * règles, pas de l'interface. Refuse pendant le combat des Boss : on n'en
+ * sort plus.
  * @param {Session} session
  * @returns {Session}
  */
@@ -202,10 +202,5 @@ export function passerPhase(session) {
     return Object.freeze({ ...session, erreur: 'Le combat des Boss ne mène à aucune autre phase' });
   }
 
-  const partie =
-    session.partie.phase === 'ENNEMI_AVANCE'
-      ? terminerPhaseEnnemiAvance(session.partie)
-      : avancerPhase(session.partie);
-
-  return Object.freeze({ partie, enCours: null, erreur: null });
+  return Object.freeze({ partie: passerALaPhaseSuivante(session.partie), enCours: null, erreur: null });
 }

@@ -1,14 +1,14 @@
 // Moteur — décide quand enchaîner quoi entre les phases, et applique les
 // conséquences qui ne relèvent d'aucun dispatcher en particulier. Couche PURE.
 //
-// Deux sujets aujourd'hui : la bascule L'Ennemi Avance → combat des Boss
-// (règles : « quand la pile ET la piste sont vides, on détruit les ennemis
-// restés aux Portes et on passe au combat des Boss »), et la conséquence d'un
-// Château vide (règles p.8).
+// Trois sujets : l'enchaînement des phases et ce que chacune impose en y
+// entrant, la bascule L'Ennemi Avance → combat des Boss (règles : « quand la
+// pile ET la piste sont vides, on détruit les ennemis restés aux Portes et on
+// passe au combat des Boss »), et la conséquence d'un Château vide (p.8).
 //
-// Le reste d'un tour (jouer des cartes, choisir de passer à la phase suivante
-// pendant Entraînement/Combat) est piloté par le joueur — donc par l'UI, pas
-// par le moteur : rien à orchestrer ici pour ça.
+// Le reste d'un tour (jouer des cartes, choisir QUAND passer à la phase
+// suivante) est piloté par le joueur — donc par l'UI, pas par le moteur.
+// Mais ce qu'une phase déclenche d'elle-même est une règle du jeu, et vit ici.
 
 import { avancerPhase, reinitialiserEtatsDePhase } from './partie.js';
 import { avancerEnnemis, pisteEtPileVides } from './ennemi-avance.js';
@@ -46,6 +46,28 @@ export function terminerPhaseEnnemiAvance(partie) {
     });
   }
   return avancerPhase(partie);
+}
+
+/**
+ * Passe à la phase suivante, en appliquant ce que la nouvelle phase impose
+ * d'elle-même.
+ *
+ * Entrer dans « L'Ennemi Avance » fait glisser les ennemis d'une case (règles
+ * p.10 : « on glisse les cartes Ennemi d'une case dans le sens des flèches »).
+ * C'est l'action de la phase, pas la conséquence d'une carte — d'où sa place
+ * ici, et non dans `revelation.js` qui ne connaît que l'effet ENNEMI_AVANCE
+ * porté par un ennemi.
+ *
+ * Sans cette avancée, la piste ne bougeait jamais : aucun ennemi n'atteignait
+ * les Portes, et aucun combat n'avait lieu.
+ * @param {Partie} partie
+ * @returns {Partie}
+ */
+export function passerALaPhaseSuivante(partie) {
+  if (partie.phase === 'ENNEMI_AVANCE') return terminerPhaseEnnemiAvance(partie);
+
+  const apres = avancerPhase(partie);
+  return apres.phase === 'ENNEMI_AVANCE' ? avancerEnnemis(apres) : apres;
 }
 
 /**
