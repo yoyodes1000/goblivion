@@ -135,6 +135,7 @@ const DOS_ENNEMI = 'dos-ennemi';
  * @property {(EnnemiVue | null)[]} pisteEnnemi
  * @property {EnnemiVue[]} portes
  * @property {number} ennemisARevele   Combien restent à révéler aux Portes.
+ * @property {boolean} combatResoluble Tous révélés, le combat peut se conclure.
  * @property {number} bossRestants
  * @property {PileMarcheVue[]} marche
  */
@@ -278,6 +279,8 @@ export function construireVue(partie) {
     pisteEnnemi: partie.pisteEnnemi.map((e) => (e ? ennemiVue(e) : null)),
     portes: partie.portes.map(ennemiVue),
     ennemisARevele: partie.portes.filter((e) => !e.revele).length,
+    combatResoluble: partie.phase === 'COMBAT' && partie.portes.length > 0
+      && partie.portes.every((e) => e.revele),
 
     // Les Boss sont faces cachées jusqu'à être affrontés : leur nombre suffit.
     bossRestants: partie.boss.length,

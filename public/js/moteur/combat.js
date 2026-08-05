@@ -68,6 +68,28 @@ function gainSurvivant(ennemi) {
 }
 
 /**
+ * Force alliée du combat en cours, jetons annulés compris (Gobelin pestilant).
+ * @param {Partie} partie
+ * @returns {number}
+ */
+export function forceAlliee(partie) {
+  return forceTotale(partie.champDeBataille, { jetonsIgnores: partie.jetonsIgnores });
+}
+
+/**
+ * L'issue du combat, sans le résoudre : gagné dès que la Force alliée atteint
+ * celle des Portes (règles p.11 : « supérieure OU ÉGALE »).
+ *
+ * L'interface a besoin de la connaître avant d'agir : une victoire se résout
+ * seule, une défaite demande d'abord au joueur quels ennemis il abat.
+ * @param {Partie} partie
+ * @returns {boolean}
+ */
+export function combatGagne(partie) {
+  return forceAlliee(partie) >= forceEnnemisPortes(partie);
+}
+
+/**
  * Résout un combat aux Portes (étape « comparer les forces »).
  * - Victoire (force ≥ ennemis) : tous les ennemis sont vaincus ; leurs
  *   récompenses et les cartes en jeu rejoignent l'Hôpital.
@@ -80,7 +102,7 @@ function gainSurvivant(ennemi) {
  * @returns {{ partie: Partie, victoire: boolean }}
  */
 export function resoudreCombat(partie, ciblesDefaite = []) {
-  const forceJoueur = forceTotale(partie.champDeBataille, { jetonsIgnores: partie.jetonsIgnores });
+  const forceJoueur = forceAlliee(partie);
   const forceEnnemis = forceEnnemisPortes(partie);
 
   if (forceJoueur >= forceEnnemis) {
@@ -105,7 +127,10 @@ export function resoudreCombat(partie, ciblesDefaite = []) {
     (somme, ennemi, i) => (cibles.has(i) ? somme + forceEnnemi(ennemi) : somme),
     0,
   );
-  if (forceCiblee > forceJoueur) {
+  // `Math.max(0, …)` : une Force négative ne se répartit pas, mais ne doit pas
+  // empêcher de ne viser personne — sans quoi 0 > -1 refuserait une liste vide,
+  // et le joueur affaibli se retrouverait sans issue.
+  if (forceCiblee > Math.max(0, forceJoueur)) {
     throw new Error('Force insuffisante pour éliminer les ennemis ciblés');
   }
 

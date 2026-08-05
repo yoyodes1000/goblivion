@@ -341,11 +341,15 @@ function rendreDemande(demande, contexte) {
   const groupe = document.createElement('fieldset');
   groupe.append(element('legend', undefined, `${contexte} — ${demande.libelle}`));
 
-  if (demande.nombre > 1) {
+  if (demande.libre) {
+    groupe.append(element('p', 'demande-consigne', 'autant que tu veux, zéro compris'));
+  } else if (demande.nombre > 1) {
     groupe.append(element('p', 'demande-consigne', `${demande.nombre} à désigner`));
   }
 
-  const type = demande.nombre === 1 ? 'radio' : 'checkbox';
+  // Un choix libre reste à cocher, même s'il n'en faut qu'un : les radios
+  // s'excluent, et l'on doit pouvoir n'en désigner aucun.
+  const type = demande.nombre === 1 && !demande.libre ? 'radio' : 'checkbox';
   for (const option of demande.options) {
     const etiquette = element('label', 'option');
     const champ = document.createElement('input');
@@ -398,6 +402,12 @@ function rendreCommandes(vue, actionOuverte) {
     const reveler = bouton(`Révéler l’ennemi suivant (${vue.ennemisARevele})`, 'reveler');
     reveler.disabled = actionOuverte;
     section.append(reveler);
+  }
+
+  if (vue.combatResoluble) {
+    const combattre = bouton(`Combattre (${vue.forceAlliee} contre ${vue.forceEnnemie})`, 'combattre');
+    combattre.disabled = actionOuverte;
+    section.append(combattre);
   }
 
   return section;
