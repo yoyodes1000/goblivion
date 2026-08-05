@@ -100,3 +100,18 @@ test('la force d’un ennemi inclut son jeton bonus', () => {
   const { victoire } = resoudreCombat(scenario([allie('gentilhomme', 4)], [ennemi('gob', 3, 'UNE_EPEE', 2)]), []);
   assert.equal(victoire, false);
 });
+
+test('défaite à Force négative : ne viser personne reste possible', () => {
+  // 0 > -1 refusait une liste vide, laissant le joueur affaibli sans issue.
+  const p = scenario([allie('mendiant', -1)], [ennemi('gob', 3, 'UNE_EPEE')]);
+  const { partie, victoire } = resoudreCombat(p, []);
+
+  assert.equal(victoire, false);
+  assert.equal(partie.portes.length, 1);
+  assert.equal(partie.portes[0]?.jetonBonus, 1); // le survivant gagne son jeton
+});
+
+test('défaite à Force négative : viser quelqu’un reste refusé', () => {
+  const p = scenario([allie('mendiant', -1)], [ennemi('gob', 3, 'UNE_EPEE')]);
+  assert.throws(() => resoudreCombat(p, [0]), /Force insuffisante/);
+});

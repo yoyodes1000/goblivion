@@ -50,8 +50,10 @@ import { dores } from '../moteur/cartes/index.js';
  * @typedef {object} Demande
  * @property {'CARTES' | 'CASES_PISTE' | 'BRANCHE'} genre
  * @property {string} libelle
- * @property {number} nombre    Combien de `valeur` la réponse doit porter.
+ * @property {number} nombre     Combien de `valeur` la réponse doit porter.
  * @property {Option[]} options
+ * @property {boolean} [libre]   Le nombre est alors indicatif : le joueur en
+ *                               désigne autant qu'il veut, zéro compris.
  */
 
 /**

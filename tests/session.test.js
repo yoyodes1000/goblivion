@@ -16,6 +16,7 @@ import {
   annulerAction,
   passerPhase,
   revelerProchainEnnemi,
+  resoudreLeCombat,
 } from '../public/js/ui/session.js';
 
 const rng = () => creerRng(1);
@@ -243,4 +244,93 @@ test('« l’ennemi avance » déclenché par une révélation fait glisser la p
 
   assert.equal(apres.partie.pisteEnnemi.filter(Boolean).length, 1);
   assert.equal(apres.partie.portes[0]?.revele, true);
+});
+
+// ── Résolution du combat ────────────────────────────────────────────────────
+
+/** @param {string} id @param {number} force @returns {import('../public/js/moteur/partie.js').EnnemiSurPiste} */
+function revele(id, force) {
+  const type = /** @type {any} */ ({
+    id, nom: id, force, niveau: 'UNE_EPEE', cartes: 1, actionsEnnemi: [],
+    recompense: { nom: `Butin ${id}`, symbole: 'OBJET', force: 0, actions: [] },
+  });
+  return { instance: { instanceId: `${id}#e`, type }, revele: true, jetonBonus: 0 };
+}
+
+test('victoire : le combat se résout seul, sans question', () => {
+  const s = session({
+    phase: /** @type {any} */ ('COMBAT'),
+    portes: [revele('gob', 2)],
+    champDeBataille: [bleu('gentilhomme')], // force 2
+  });
+  const apres = resoudreLeCombat(s, rng());
+
+  assert.equal(apres.enCours, null);
+  assert.equal(apres.partie.portes.length, 0);
+  assert.equal(apres.partie.premierCombatGagne, true);
+  assert.ok(apres.partie.hopital.some((c) => c.type.nom === 'Butin gob')); // la récompense
+});
+
+test('défaite : la question de la répartition s’ouvre, la partie intacte', () => {
+  const s = session({
+    phase: /** @type {any} */ ('COMBAT'),
+    portes: [revele('faible', 2), revele('costaud', 9)],
+    champDeBataille: [bleu('gentilhomme')], // force 2
+  });
+  const apres = resoudreLeCombat(s, rng());
+
+  assert.equal(apres.enCours?.genre, 'COMBAT');
+  assert.equal(demandeCourante(apres)?.libre, true);
+  assert.equal(demandeCourante(apres)?.options.length, 2);
+  assert.equal(apres.partie, s.partie); // rien n'a encore bougé
+});
+
+test('défaite : abattre un ennemi qu’on égale, l’autre survit avec un jeton', () => {
+  const s = session({
+    phase: /** @type {any} */ ('COMBAT'),
+    portes: [revele('faible', 2), revele('costaud', 9)],
+    champDeBataille: [bleu('gentilhomme')],
+  });
+  const apres = repondreDemande(resoudreLeCombat(s, rng()), ['0'], rng());
+
+  assert.equal(apres.partie.ressources, s.partie.ressources - 9); // 11 - 2
+  assert.equal(apres.partie.portes.length, 1);
+  assert.equal(apres.partie.portes[0]?.instance.instanceId, 'costaud#e');
+  assert.equal(apres.partie.portes[0]?.jetonBonus, 1); // survivant 1 épée
+  assert.ok(apres.partie.hopital.some((c) => c.type.nom === 'Butin faible'));
+});
+
+test('défaite : n’abattre personne est un choix valable', () => {
+  const s = session({
+    phase: /** @type {any} */ ('COMBAT'),
+    portes: [revele('costaud', 9)],
+    champDeBataille: [],
+  });
+  const apres = repondreDemande(resoudreLeCombat(s, rng()), [], rng());
+
+  assert.equal(apres.enCours, null);
+  assert.equal(apres.partie.portes.length, 1);
+  assert.equal(apres.partie.portes[0]?.jetonBonus, 1);
+});
+
+test('défaite : viser plus que sa Force est refusé, la question reste ouverte', () => {
+  const s = session({
+    phase: /** @type {any} */ ('COMBAT'),
+    portes: [revele('a', 3), revele('b', 3)],
+    champDeBataille: [bleu('gentilhomme')], // force 2, insuffisante pour l'un ou l'autre
+  });
+  const apres = repondreDemande(resoudreLeCombat(s, rng()), ['0'], rng());
+
+  assert.match(apres.erreur ?? '', /Force insuffisante/);
+  assert.equal(apres.enCours?.genre, 'COMBAT'); // on peut se corriger
+});
+
+test('combattre est refusé tant qu’un ennemi n’est pas révélé', () => {
+  const s = session({ phase: /** @type {any} */ ('COMBAT'), portes: [auxPortes('gob')] });
+  assert.match(resoudreLeCombat(s, rng()).erreur ?? '', /Révèle d’abord/);
+});
+
+test('combattre sans ennemi aux Portes n’a pas de sens', () => {
+  const s = session({ phase: /** @type {any} */ ('COMBAT'), portes: [] });
+  assert.match(resoudreLeCombat(s, rng()).erreur ?? '', /pas de combat/);
 });

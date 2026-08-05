@@ -25,6 +25,7 @@ import {
 import { dores } from '../moteur/cartes/index.js';
 import { prochainARevele, piocherPourEnnemi, revelerAuxPortes } from '../moteur/revelation.js';
 import { avancerEnnemis } from '../moteur/ennemi-avance.js';
+import { combatGagne, forceAlliee, forceEnnemi, forceEnnemisPortes, resoudreCombat } from '../moteur/combat.js';
 import {
   demarrerCollecte,
   demarrerCollectePouvoir,
@@ -45,7 +46,7 @@ import {
  * imbriquer. ENTRAINEMENT, lui, n'exécute aucun effet — il demande une OPTION,
  * la carte à sacrifier, et sa question est donc fabriquée telle quelle.
  * @typedef {object} ActionEnCours
- * @property {'PIVOTER' | 'POUVOIR' | 'ENTRAINEMENT' | 'REVELATION'} genre
+ * @property {'PIVOTER' | 'POUVOIR' | 'ENTRAINEMENT' | 'REVELATION' | 'COMBAT'} genre
  * @property {string} libelle              Ce qu'on est en train de jouer, pour l'afficher.
  * @property {string} [instanceId]         La carte activée (PIVOTER seulement).
  * @property {string} [doreId]             La Doré convoitée (ENTRAINEMENT seulement).
@@ -236,6 +237,58 @@ export function revelerProchainEnnemi(session, rng) {
 }
 
 /**
+ * Compare les Forces et conclut le combat.
+ *
+ * Une victoire se résout seule. Une défaite demande d'abord au joueur comment
+ * répartir sa Force : chaque ennemi dont il l'égale tombe, les autres survivent
+ * en gagnant un jeton. Le choix est LIBRE — on peut n'en abattre aucun — et le
+ * moteur refuse si le total ciblé dépasse la Force disponible.
+ * @param {Session} session
+ * @param {() => number} rng
+ * @returns {Session}
+ */
+export function resoudreLeCombat(session, rng) {
+  if (session.enCours) {
+    return Object.freeze({ ...session, erreur: 'Termine l’action en cours d’abord' });
+  }
+  if (session.partie.portes.length === 0) {
+    return Object.freeze({ ...session, erreur: 'Aucun ennemi aux Portes : il n’y a pas de combat' });
+  }
+  if (prochainARevele(session.partie) !== null) {
+    return Object.freeze({ ...session, erreur: 'Révèle d’abord tous les ennemis aux Portes' });
+  }
+
+  if (combatGagne(session.partie)) {
+    const { partie } = resoudreCombat(session.partie);
+    return Object.freeze({ partie, enCours: null, erreur: null });
+  }
+
+  const disponible = forceAlliee(session.partie);
+  const options = session.partie.portes.map((ennemi, index) => ({
+    valeur: String(index),
+    libelle: `${ennemi.instance.type.nom} — Force ${forceEnnemi(ennemi)}`,
+  }));
+
+  /** @type {ActionEnCours} */
+  const enCours = {
+    genre: 'COMBAT',
+    libelle: `Combat perdu — ${forceEnnemisPortes(session.partie) - disponible} ressources perdues`,
+    demande: {
+      genre: 'CARTES',
+      libelle:
+        disponible > 0
+          ? `Répartis ta Force de ${disponible} : chaque ennemi que tu égales est abattu`
+          : 'Aucune Force à répartir : valide sans rien désigner',
+      nombre: 1,
+      libre: true,
+      options,
+    },
+  };
+
+  return Object.freeze({ ...session, enCours, erreur: null });
+}
+
+/**
  * Ouvre un entraînement : pioche aussitôt, puis demande quelle carte sacrifier.
  *
  * La pioche est ENGAGÉE dès ce moment — elle est faite, elle ne se reprend pas.
@@ -291,6 +344,18 @@ export function commencerEntrainement(session, doreId, rng) {
 export function repondreDemande(session, valeurs, rng) {
   const action = session.enCours;
   if (!action) return Object.freeze({ ...session, erreur: 'Aucune action en cours' });
+
+  // La répartition de la Force conclut le combat perdu.
+  if (action.genre === 'COMBAT') {
+    try {
+      const cibles = valeurs.map(Number);
+      const { partie } = resoudreCombat(session.partie, cibles);
+      return Object.freeze({ partie, enCours: null, erreur: null });
+    } catch (erreur) {
+      // Total ciblé trop élevé : la question reste ouverte pour se corriger.
+      return Object.freeze({ ...session, erreur: messageDe(erreur) });
+    }
+  }
 
   // L'entraînement n'a qu'une question : y répondre le conclut.
   if (action.genre === 'ENTRAINEMENT') {
