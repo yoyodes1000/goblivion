@@ -49,7 +49,12 @@ export function detruireEnnemisAuxPortes(partie) {
  * Entraînement mais un changement de mode) — sinon avance normalement au
  * cycle habituel via `avancerPhase`.
  *
- * Les deux chemins terminent la phase en cours : entrer en combat des Boss
+ * Sauf qu'un Château sans assaillant n'a rien à défendre : les Portes vides,
+ * la phase Combat n'aurait aucun ennemi à résoudre, et l'on enchaîne
+ * directement sur l'Entraînement du tour suivant. C'est la seule phase qu'on
+ * saute, et seulement dans ce cas.
+ *
+ * Les trois chemins terminent la phase en cours : entrer en combat des Boss
  * reste un changement de phase, même s'il ne passe pas par le cycle.
  * @param {Partie} partie
  * @returns {Partie}
@@ -61,7 +66,9 @@ export function terminerPhaseEnnemiAvance(partie) {
       phase: 'COMBAT_BOSS',
     });
   }
-  return avancerPhase(partie);
+
+  const apres = avancerPhase(partie);
+  return partie.portes.length === 0 ? avancerPhase(apres) : apres;
 }
 
 /**
