@@ -5,8 +5,9 @@ Implémentation **personnelle et locale** du jeu de société solo
 pour y jouer seul contre le système du jeu.
 
 > Projet de fan, **non officiel**, sans affiliation avec Goblivion Games.
-> Aucune règle, carte, illustration ni autre contenu sous droits n'est
-> inclus dans ce dépôt.
+> Ni les livrets de règles, ni aucune illustration ne sont inclus dans ce
+> dépôt. Les **caractéristiques des cartes** (noms, forces, textes d'action),
+> elles, y sont saisies : le moteur ne saurait pas jouer sans.
 
 ## Statut
 
@@ -62,6 +63,21 @@ npm run check
 ```
 
 Node 24 ou plus récent (voir le champ `engines`).
+
+## Jouer avec les images des cartes (facultatif)
+
+Le dépôt ne contient **aucun scan** : chacun fournit les siens, à partir du jeu
+qu'il possède. Sans eux, le plateau s'affiche en texte et tout reste jouable —
+c'est le cas par défaut.
+
+Pour les ajouter, scanner ses cartes puis ouvrir
+<http://localhost:8080/outils/images.html> (serveur démarré). L'outil
+redimensionne en WebP, normalise les noms vers les identifiants du moteur et
+signale ceux qu'il ne reconnaît pas. Destination :
+`public/images/cartes/` — dossier **ignoré par Git**, et qui doit le rester.
+
+Une carte Ennemi/Objet est un seul carton : l'ennemi en haut, l'objet en bas à
+180°. Un seul fichier par carte suffit donc, l'affichage se charge du découpage.
 
 ## Contenu sous droits — non inclus
 

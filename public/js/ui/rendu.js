@@ -60,6 +60,44 @@ function bouton(texte, action, donnees = {}) {
 }
 
 /**
+ * Le scan d'une carte, s'il existe. `alt=""` : l'image est DÉCORATIVE, le nom,
+ * le symbole et la force restant écrits à côté — sans quoi il aurait fallu
+ * rédiger 92 textes alternatifs.
+ *
+ * Si le fichier manque, le cadre se retire de lui-même : le jeu reste jouable
+ * en texte pour qui n'a pas fourni ses propres scans, et rien ne le trahit à
+ * l'écran. C'est aussi ce qui permet à la CI de tourner sans une seule image.
+ *
+ * Une carte Ennemi/Objet est un carton unique — ennemi en haut, objet en bas à
+ * 180°. On n'en montre donc qu'une moitié, via un cadre deux fois moins haut
+ * que l'image ; la rotation du bas est faite en CSS.
+ * @param {import('./vue.js').ImageVue} image
+ * @returns {HTMLElement}
+ */
+function rendreImage(image) {
+  const cadre = element('div', image.moitie ? 'vignette vignette--moitie' : 'vignette');
+  if (image.moitie) cadre.dataset['moitie'] = image.moitie.toLowerCase();
+
+  const vignette = document.createElement('img');
+  vignette.src = `/images/cartes/${image.fichier}.webp`;
+  vignette.alt = '';
+  vignette.loading = 'lazy';
+  vignette.addEventListener('error', () => cadre.remove());
+
+  // La hauteur du cadre vaut la moitié de celle du scan. Mesurée sur l'image
+  // plutôt que codée en dur : la conversion redimensionne, et un rapport figé
+  // décalerait la coupure au moindre changement de réglage ou de cadrage.
+  if (image.moitie) {
+    vignette.addEventListener('load', () => {
+      cadre.style.aspectRatio = `${vignette.naturalWidth} / ${vignette.naturalHeight / 2}`;
+    });
+  }
+
+  cadre.append(vignette);
+  return cadre;
+}
+
+/**
  * « aucune carte » / « 1 carte » / « 20 cartes ».
  * @param {number} nombre
  * @returns {string}
@@ -80,6 +118,7 @@ function rendreCarte(carte) {
   if (carte.activee) item.dataset['activee'] = 'oui';
 
   item.append(
+    rendreImage(carte.image),
     element('span', 'carte-nom', carte.nom),
     // Le symbole est écrit, pas seulement porté par une couleur.
     element('span', 'carte-symbole', carte.symbole),
@@ -115,6 +154,7 @@ function rendreCarte(carte) {
  */
 function rendreEnnemi(ennemi) {
   const item = element('li', 'ennemi');
+  item.append(rendreImage(ennemi.image));
 
   if (!ennemi.revele) {
     item.dataset['revele'] = 'non';
@@ -163,7 +203,7 @@ function rendreSectionListe(titre, items, videTexte = 'Vide') {
  */
 function rendreEntete(vue) {
   const section = element('section', 'entete');
-  section.append(element('h2', undefined, 'État de la partie'));
+  section.append(element('h2', undefined, 'État de la partie'), rendreImage(vue.imageRoiReine));
 
   const liste = element('dl', 'resume');
   /** @type {[string, string][]} */

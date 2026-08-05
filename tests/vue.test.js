@@ -223,3 +223,46 @@ test('hors du Champ de bataille, rien n’est activable — Hôpital comme Garde
   assert.equal(vue.hopital.cartes[0]?.activable, false);
   assert.equal(vue.gardeDuCorps?.activable, false);
 });
+
+// ── Quelle image montrer ────────────────────────────────────────────────────
+
+test('une carte ordinaire montre son propre scan, en entier', () => {
+  const vue = construireVue(scenario({ champDeBataille: [allie('gentilhomme', 2)] }));
+  assert.deepEqual(vue.champDeBataille.cartes[0]?.image, { fichier: 'gentilhomme', moitie: null });
+});
+
+test('un Objet récompense montre la moitié basse de l’ennemi qui le portait', () => {
+  // Slip sale est imprimé au dos du Gobelin nudiste, sur le même carton.
+  const p = scenario({ hopital: [allie('slip-sale', 1, 'OBJET')] });
+  assert.deepEqual(construireVue(p).hopital.cartes[0]?.image, {
+    fichier: 'gobelin-nudiste',
+    moitie: 'BAS',
+  });
+});
+
+test('le Soldat garde son propre scan, bien qu’il soit aussi une récompense', () => {
+  // Récompense du Gobelin trappeur ET carte Dorée : c'est la Dorée qui prime,
+  // le moteur ne distinguant pas les deux.
+  const p = scenario({ champDeBataille: [allie('soldat', 'VARIABLE')] });
+  assert.deepEqual(construireVue(p).champDeBataille.cartes[0]?.image, {
+    fichier: 'soldat',
+    moitie: null,
+  });
+});
+
+test('un ennemi révélé montre la moitié haute de son carton', () => {
+  const p = scenario({ portes: [ennemi('gobelin-archer', true)] });
+  assert.deepEqual(construireVue(p).portes[0]?.image, { fichier: 'gobelin-archer', moitie: 'HAUT' });
+});
+
+test('un ennemi non révélé ne montre que le dos, jamais son propre scan', () => {
+  const p = scenario({ pisteEnnemi: [ennemi('gobelin-archer', false), null, null] });
+  const [case1] = construireVue(p).pisteEnnemi;
+
+  assert.deepEqual(case1?.image, { fichier: 'dos-ennemi', moitie: null });
+  assert.equal(JSON.stringify(case1).includes('gobelin-archer'), false);
+});
+
+test('le rôle Roi/Reine a son image dans l’en-tête', () => {
+  assert.deepEqual(construireVue(scenario()).imageRoiReine, { fichier: 'margot', moitie: null });
+});
