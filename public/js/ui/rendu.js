@@ -109,10 +109,15 @@ function nombreDeCartes(nombre) {
 
 /**
  * Une carte alliée.
+ *
+ * Ses boutons disparaissent tant qu'une question est posée : y répondre est la
+ * seule chose à faire, et rien ne doit pouvoir s'ouvrir par-dessus. La session
+ * refuse déjà de son côté — l'interface ne fait pas semblant de proposer.
  * @param {CarteVue} carte
+ * @param {boolean} actionOuverte
  * @returns {HTMLElement}
  */
-function rendreCarte(carte) {
+function rendreCarte(carte, actionOuverte) {
   const item = element('li', 'carte');
   item.dataset['symbole'] = carte.symbole;
   if (carte.activee) item.dataset['activee'] = 'oui';
@@ -139,8 +144,13 @@ function rendreCarte(carte) {
 
   // Le bouton est distinct du contenu plutôt que d'englober la carte : un
   // `button` n'accepte que du contenu de phrase, pas la liste des actions.
-  if (carte.activable) {
+  if (carte.activable && !actionOuverte) {
     item.append(bouton('Activer', 'pivoter', { id: carte.instanceId }));
+  }
+  // Un bouton, pas un glisser-déposer : c'est utilisable au clavier et au
+  // lecteur d'écran sans rien à recoudre (CLAUDE.md, section Accessibilité).
+  if (carte.echangeable && !actionOuverte) {
+    item.append(bouton('Passer Garde du corps', 'garde', { id: carte.instanceId }));
   }
 
   return item;
@@ -314,9 +324,10 @@ function rendreReserves(vue) {
 /**
  * Le marché Doré : les 12 piles et ce qu'il en reste.
  * @param {VuePartie} vue
+ * @param {boolean} actionOuverte
  * @returns {HTMLElement}
  */
-function rendreMarche(vue) {
+function rendreMarche(vue, actionOuverte) {
   const section = element('section', 'zone');
   section.append(element('h2', undefined, 'Marché Doré'));
 
@@ -336,7 +347,7 @@ function rendreMarche(vue) {
       ),
       element('span', 'carte-restant', `${pile.restant} en réserve`),
     );
-    if (pile.entrainable) {
+    if (pile.entrainable && !actionOuverte) {
       item.append(bouton('Entraîner', 'entrainer', { dore: pile.typeId }));
     }
     liste.append(item);
@@ -441,10 +452,11 @@ function rendreIssue(issue) {
  * Les commandes qui ne dépendent d'aucune carte.
  * @param {VuePartie} vue
  * @param {boolean} actionOuverte
- * @param {boolean} tentativeBoss   Le Boss est engagé : il reste à comparer les Forces.
+ * @param {boolean} tentativeBoss          Le Boss est engagé : il reste à comparer les Forces.
+ * @param {boolean} entrainementEngage     Le jeton d'entraînement est posé : il reste à conclure.
  * @returns {HTMLElement}
  */
-function rendreCommandes(vue, actionOuverte, tentativeBoss) {
+function rendreCommandes(vue, actionOuverte, tentativeBoss, entrainementEngage) {
   const section = element('section', 'commandes');
   section.append(element('h2', undefined, 'Commandes'));
 
@@ -460,6 +472,16 @@ function rendreCommandes(vue, actionOuverte, tentativeBoss) {
   }
 
   section.append(pouvoir);
+
+  // Un entraînement engagé se conclut quand le joueur a fini de jouer ses
+  // cartes — ou s'abandonne, la main tirée partant à l'Hôpital.
+  if (entrainementEngage) {
+    const conclure = bouton('Conclure l’entraînement', 'conclure-entrainement');
+    const renoncer = bouton('Renoncer à l’entraînement', 'renoncer-entrainement');
+    conclure.disabled = actionOuverte;
+    renoncer.disabled = actionOuverte;
+    section.append(conclure, renoncer);
+  }
 
   // La révélation se fait ennemi par ennemi : le joueur voit chaque pioche et
   // chaque action avant de passer au suivant.
@@ -494,8 +516,9 @@ function rendreCommandes(vue, actionOuverte, tentativeBoss) {
  * @typedef {object} EtatEcran
  * @property {import('./collecte.js').Demande | null} demande
  * @property {string | null} erreur
- * @property {boolean} tentativeBoss   Le Boss est engagé, il reste à conclure.
- * @property {string} [contexte]       Ce qu'on est en train de jouer.
+ * @property {boolean} tentativeBoss        Le Boss est engagé, il reste à conclure.
+ * @property {boolean} entrainementEngage   Le jeton d'entraînement est posé, il reste à conclure.
+ * @property {string} [contexte]            Ce qu'on est en train de jouer.
  */
 
 /**
@@ -505,7 +528,10 @@ function rendreCommandes(vue, actionOuverte, tentativeBoss) {
  * @param {EtatEcran} ecran
  */
 export function rendrePlateau(racine, vue, ecran) {
-  const gardeDuCorps = vue.gardeDuCorps ? [rendreCarte(vue.gardeDuCorps)] : [];
+  // Une question posée fige le plateau : elle seule attend une réponse.
+  const actionOuverte = ecran.demande !== null;
+  const carte = (/** @type {CarteVue} */ c) => rendreCarte(c, actionOuverte);
+  const gardeDuCorps = vue.gardeDuCorps ? [carte(vue.gardeDuCorps)] : [];
 
   // Partie finie : le plateau reste lisible, mais plus aucune commande — ni
   // question en suspens, qui n'aurait plus de réponse à donner.
@@ -515,7 +541,9 @@ export function rendrePlateau(racine, vue, ecran) {
     ...(vue.issue ? [rendreIssue(vue.issue)] : []),
     ...(ecran.erreur ? [rendreErreur(ecran.erreur)] : []),
     ...(ecran.demande && !termine ? [rendreDemande(ecran.demande, ecran.contexte ?? 'Action')] : []),
-    ...(termine ? [] : [rendreCommandes(vue, ecran.demande !== null, ecran.tentativeBoss)]),
+    ...(termine
+      ? []
+      : [rendreCommandes(vue, actionOuverte, ecran.tentativeBoss, ecran.entrainementEngage)]),
     rendreEntete(vue),
     ...(vue.boss ? [rendreBoss(vue.boss)] : []),
     rendreSectionListe(
@@ -526,12 +554,12 @@ export function rendrePlateau(racine, vue, ecran) {
     rendrePiste(vue),
     rendreSectionListe(
       vue.champDeBataille.nom,
-      vue.champDeBataille.cartes.map(rendreCarte),
+      vue.champDeBataille.cartes.map(carte),
       'Aucune carte en jeu',
     ),
     rendreSectionListe('Garde du corps', gardeDuCorps, 'Aucun Garde du corps'),
-    rendreSectionListe(vue.hopital.nom, vue.hopital.cartes.map(rendreCarte)),
+    rendreSectionListe(vue.hopital.nom, vue.hopital.cartes.map(carte)),
     rendreReserves(vue),
-    rendreMarche(vue),
+    rendreMarche(vue, actionOuverte),
   );
 }

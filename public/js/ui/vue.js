@@ -75,6 +75,7 @@ const DOS_ENNEMI = 'dos-ennemi';
  * @property {number} jetonBonus
  * @property {boolean} activee       Déjà « pivotée » cette phase.
  * @property {boolean} activable     Son action Pivoter est jouable maintenant.
+ * @property {boolean} echangeable   Peut prendre la place du Garde du corps maintenant.
  * @property {string[]} actions      Textes des actions de la carte.
  * @property {ImageVue} image        Le scan à afficher, si le joueur en a fourni un.
  */
@@ -205,6 +206,9 @@ function carteVue(carte, partie, enJeu) {
     // une action Pivoter existe sur le carton mais n'est pas jouable. Et plus
     // rien ne l'est une fois la partie finie.
     activable: enCours && enJeu && aPivoter && !activee,
+    // Mêmes conditions que le moteur (voir `echangerGardeDuCorps`) : une seule
+    // fois par phase, et jamais une carte déjà « tournée à 90° ».
+    echangeable: enCours && enJeu && !activee && !partie.gardeDuCorpsEchange,
     // `texte` est optionnel dans les données : une action sans libellé est
     // omise, plutôt que d'afficher un trou à l'écran.
     actions: carte.type.actions.flatMap((a) => (a.texte ? [a.texte] : [])),
