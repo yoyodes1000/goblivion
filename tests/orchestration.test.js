@@ -35,11 +35,20 @@ test('detruireEnnemisAuxPortes vide les Portes sans toucher au reste', () => {
   assert.equal(partie.ressources, p.ressources);
 });
 
-test('terminerPhaseEnnemiAvance : pile et piste non vides, avance normalement vers Combat', () => {
-  const p = scenario(); // mise en place par défaut : pileEnnemi non vide
+test('terminerPhaseEnnemiAvance : un ennemi aux Portes, on avance vers Combat', () => {
+  const p = scenario({ portes: [ennemiAuxPortes()] }); // pileEnnemi non vide par défaut
   const partie = terminerPhaseEnnemiAvance(p);
   assert.equal(partie.phase, 'COMBAT');
   assert.equal(partie.tour, p.tour);
+});
+
+test('terminerPhaseEnnemiAvance : Portes vides, la phase Combat est sautée', () => {
+  // Rien à défendre, rien à résoudre : on enchaîne sur le tour suivant.
+  const p = scenario({ portes: [] });
+  const partie = terminerPhaseEnnemiAvance(p);
+
+  assert.equal(partie.phase, 'ENTRAINEMENT');
+  assert.equal(partie.tour, p.tour + 1); // sauter le Combat n'escamote pas le tour
 });
 
 test('terminerPhaseEnnemiAvance : pile et piste vides, bascule vers le combat des Boss', () => {
@@ -116,8 +125,9 @@ test('entrer dans L’Ennemi Avance fait glisser les ennemis d’une case', () =
 });
 
 test('un tour complet ne fait avancer l’ennemi qu’une fois', () => {
+  // Personne aux Portes au premier tour : le tour ne compte que deux phases.
   let p = scenario({ phase: /** @type {any} */ ('ENTRAINEMENT') });
-  for (const attendue of ['ENNEMI_AVANCE', 'COMBAT', 'ENTRAINEMENT']) {
+  for (const attendue of ['ENNEMI_AVANCE', 'ENTRAINEMENT']) {
     p = passerALaPhaseSuivante(p);
     assert.equal(p.phase, attendue);
   }
@@ -127,19 +137,33 @@ test('un tour complet ne fait avancer l’ennemi qu’une fois', () => {
 test('quatre tours amènent le premier ennemi aux Portes', () => {
   // 3 cases de piste : la 4e avancée fait entrer le premier ennemi aux Portes.
   let p = scenario({ phase: /** @type {any} */ ('ENTRAINEMENT') });
-  for (let tour = 0; tour < 4; tour += 1) {
-    for (let i = 0; i < 3; i += 1) p = passerALaPhaseSuivante(p);
+  let tours = 0;
+
+  while (p.portes.length === 0 && tours < 10) {
+    p = passerALaPhaseSuivante(p); // → L'Ennemi Avance, qui fait glisser la piste
+    p = passerALaPhaseSuivante(p); // → Combat, ou l'Entraînement suivant si les Portes sont vides
+    tours += 1;
   }
 
+  assert.equal(tours, 4);
+  assert.equal(p.phase, 'COMBAT'); // le 4e ennemi est arrivé : cette fois il y a un combat
   assert.equal(p.portes.length, 1);
   assert.equal(p.pisteEnnemi.filter(Boolean).length, 3);
 });
 
 test('depuis L’Ennemi Avance, on avance vers le Combat sans glisser une seconde fois', () => {
-  const p = scenario({ phase: /** @type {any} */ ('ENNEMI_AVANCE') });
+  const p = scenario({ phase: /** @type {any} */ ('ENNEMI_AVANCE'), portes: [ennemiAuxPortes()] });
   const partie = passerALaPhaseSuivante(p);
 
   assert.equal(partie.phase, 'COMBAT');
+  assert.deepEqual(partie.pisteEnnemi, p.pisteEnnemi);
+});
+
+test('sauter le Combat ne fait pas glisser la piste une seconde fois', () => {
+  const p = scenario({ phase: /** @type {any} */ ('ENNEMI_AVANCE'), portes: [] });
+  const partie = passerALaPhaseSuivante(p);
+
+  assert.equal(partie.phase, 'ENTRAINEMENT');
   assert.deepEqual(partie.pisteEnnemi, p.pisteEnnemi);
 });
 

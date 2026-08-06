@@ -9,6 +9,8 @@ import { piocher } from '../public/js/moteur/pioche.js';
 import {
   ajusterRessources,
   viderChampDeBataille,
+  terminerPhase,
+  avancerPhase,
   estPerdue,
   substituerType,
   rendreTypeImprime,
@@ -56,6 +58,34 @@ test('viderChampDeBataille envoie les cartes en jeu à l’Hôpital', () => {
   p = viderChampDeBataille(p);
   assert.equal(p.champDeBataille.length, 0);
   assert.equal(p.hopital.length, 4);
+});
+
+test('terminerPhase renvoie les cartes en jeu à l’Hôpital et retombe les états', () => {
+  // Règles p.7 : « à la fin de chaque phase, les cartes en jeu quittent le
+  // Champ de bataille pour l'Hôpital ».
+  const piochee = piocher(partieNeuve(), 3, creerRng(3)).partie;
+  const p = { ...piochee, cartesActivees: ['x#1'], jetonsIgnores: true, orBloque: true,
+              gardeDuCorpsEchange: true };
+
+  const apres = terminerPhase(p);
+
+  assert.equal(apres.champDeBataille.length, 0);
+  assert.equal(apres.hopital.length, 3);
+  assert.deepEqual(apres.cartesActivees, []);
+  assert.equal(apres.jetonsIgnores, false);
+  assert.equal(apres.orBloque, false);
+  assert.equal(apres.gardeDuCorpsEchange, false);
+  assert.equal(apres.gardeDuCorps, p.gardeDuCorps); // le Garde du corps ne bouge pas
+});
+
+test('changer de phase sans conclure ne garde pas la main tirée', () => {
+  // Le cas que le vidage attrape : passer la phase sans résoudre son combat.
+  const p = piocher({ ...partieNeuve(), phase: /** @type {any} */ ('COMBAT') }, 2, creerRng(3)).partie;
+  const apres = avancerPhase(p);
+
+  assert.equal(apres.phase, 'ENTRAINEMENT');
+  assert.equal(apres.champDeBataille.length, 0);
+  assert.equal(apres.hopital.length, 2);
 });
 
 // Les tests de echangerGardeDuCorps vivent dans garde-du-corps.test.js —

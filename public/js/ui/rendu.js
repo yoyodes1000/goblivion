@@ -326,6 +326,7 @@ function rendreMarche(vue) {
     if (pile.restant === 0) item.dataset['epuisee'] = 'oui';
 
     item.append(
+      rendreImage(pile.image),
       element('span', 'carte-nom', pile.nom),
       element('span', 'carte-symbole', pile.niveau),
       element(

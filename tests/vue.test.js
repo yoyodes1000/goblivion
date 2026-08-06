@@ -283,6 +283,13 @@ test('un ennemi non révélé ne montre que le dos, jamais son propre scan', () 
   assert.equal(JSON.stringify(case1).includes('gobelin-archer'), false);
 });
 
+test('chaque pile du marché porte le scan de la carte convoitée', () => {
+  const [pile] = construireVue(scenario()).marche;
+
+  assert.deepEqual(pile?.image, { fichier: pile?.typeId, moitie: null });
+  assert.equal(construireVue(scenario()).marche.every((m) => m.image.moitie === null), true);
+});
+
 test('le rôle Roi/Reine a son image dans l’en-tête', () => {
   assert.deepEqual(construireVue(scenario()).imageRoiReine, { fichier: 'margot', moitie: null });
 });
