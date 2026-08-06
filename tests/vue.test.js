@@ -283,6 +283,23 @@ test('un ennemi non révélé ne montre que le dos, jamais son propre scan', () 
   assert.equal(JSON.stringify(case1).includes('gobelin-archer'), false);
 });
 
+test('un ennemi déjà révélé reste à engager tant qu’il n’a pas fait piocher', () => {
+  // Retourné par une Vision, il doit encore donner ses cartes : le compteur ne
+  // peut donc pas se fonder sur `revele`, et le combat n'est pas résoluble.
+  const p = scenario({
+    phase: /** @type {any} */ ('COMBAT'),
+    portes: [ennemi('gobelin-archer', true)],
+  });
+  const vue = construireVue(p);
+
+  assert.equal(vue.ennemisAEngager, 1);
+  assert.equal(vue.combatResoluble, false);
+
+  const engage = construireVue({ ...p, ennemisPioches: ['gobelin-archer#e'] });
+  assert.equal(engage.ennemisAEngager, 0);
+  assert.equal(engage.combatResoluble, true);
+});
+
 test('chaque pile du marché porte le scan de la carte convoitée', () => {
   const [pile] = construireVue(scenario()).marche;
 

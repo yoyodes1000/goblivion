@@ -97,6 +97,7 @@ export function miseEnPlace(options, rng) {
     gardeDuCorpsEchange: false,
     entrainementUtilise: false,
     cartesActivees: [],
+    ennemisPioches: [],
     jetonsIgnores: false,
     orBloque: false,
     jetonsBonusDepart: JETONS_DEPART[options.difficulte],

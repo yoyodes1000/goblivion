@@ -24,7 +24,7 @@ import {
   renoncerEntrainement,
 } from '../moteur/entrainement.js';
 import { dores } from '../moteur/cartes/index.js';
-import { prochainARevele, piocherPourEnnemi, revelerAuxPortes } from '../moteur/revelation.js';
+import { prochainAEngager, piocherPourEnnemi, revelerAuxPortes } from '../moteur/revelation.js';
 import { avancerEnnemis } from '../moteur/ennemi-avance.js';
 import { combatGagne, forceAlliee, forceEnnemi, forceEnnemisPortes, resoudreCombat } from '../moteur/combat.js';
 import { piocherPourBoss, revelerBoss, resoudreCombatBoss } from '../moteur/combat-boss.js';
@@ -253,27 +253,34 @@ export function commencerPouvoir(session, rng) {
 }
 
 /**
- * Révèle l'ennemi non révélé le plus à gauche des Portes : pioche ses cartes,
- * puis lance son action — en s'arrêtant si elle réclame une cible.
+ * Engage l'ennemi le plus à gauche des Portes qui n'a pas encore fait piocher :
+ * tire ses cartes, puis lance son action — en s'arrêtant si elle réclame une
+ * cible.
+ *
+ * « Engager » et non « révéler » : un ennemi retourné par une Vision, ou
+ * survivant du combat précédent, arrive déjà révélé et fait pourtant piocher
+ * ses cartes. Son action, elle, ne se relance pas (voir `revelerAuxPortes`).
  *
  * La pioche est engagée dès ce moment, comme aux règles : on pioche d'abord,
- * l'action ensuite. Un ennemi ne se révèle qu'une fois, `revele` faisant office
- * de marqueur d'avancement.
+ * l'action ensuite.
  * @param {Session} session
  * @param {() => number} rng
  * @returns {Session}
  */
-export function revelerProchainEnnemi(session, rng) {
+export function engagerProchainEnnemi(session, rng) {
   const finie = refusSiTerminee(session);
   if (finie) return finie;
 
   if (session.enCours) {
     return Object.freeze({ ...session, erreur: 'Termine l’action en cours d’abord' });
   }
+  if (session.partie.phase !== 'COMBAT') {
+    return Object.freeze({ ...session, erreur: 'On n’engage les ennemis que pendant la phase Combat' });
+  }
 
-  const index = prochainARevele(session.partie);
+  const index = prochainAEngager(session.partie);
   if (index === null) {
-    return Object.freeze({ ...session, erreur: 'Tous les ennemis aux Portes sont révélés' });
+    return Object.freeze({ ...session, erreur: 'Tous les ennemis aux Portes ont déjà fait piocher' });
   }
 
   const { partie } = piocherPourEnnemi(session.partie, index, rng);
@@ -315,8 +322,8 @@ export function resoudreLeCombat(session, rng) {
   if (session.partie.portes.length === 0) {
     return Object.freeze({ ...session, erreur: 'Aucun ennemi aux Portes : il n’y a pas de combat' });
   }
-  if (prochainARevele(session.partie) !== null) {
-    return Object.freeze({ ...session, erreur: 'Révèle d’abord tous les ennemis aux Portes' });
+  if (prochainAEngager(session.partie) !== null) {
+    return Object.freeze({ ...session, erreur: 'Engage d’abord tous les ennemis aux Portes' });
   }
 
   if (combatGagne(session.partie)) {

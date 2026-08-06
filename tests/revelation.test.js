@@ -8,7 +8,7 @@ import { miseEnPlace } from '../public/js/moteur/mise-en-place.js';
 import {
   revelerAuxPortes,
   resoudreRevelation,
-  prochainARevele,
+  prochainAEngager,
   piocherPourEnnemi,
 } from '../public/js/moteur/revelation.js';
 
@@ -310,14 +310,44 @@ test('resoudreRevelation : « l’ennemi avance » fait avancer la piste et repr
 
 // ── Progression pas à pas ───────────────────────────────────────────────────
 
-test('prochainARevele rend l’ennemi non révélé le plus à gauche', () => {
-  const p = scenario([ennemi('a', undefined, { revele: true }), ennemi('b'), ennemi('c')]);
-  assert.equal(prochainARevele(p), 1);
+test('prochainAEngager rend l’ennemi non pioché le plus à gauche', () => {
+  const p = scenario([ennemi('a'), ennemi('b'), ennemi('c')], { ennemisPioches: ['a#e'] });
+  assert.equal(prochainAEngager(p), 1);
 });
 
-test('prochainARevele rend null quand tout est révélé', () => {
-  const p = scenario([ennemi('a', undefined, { revele: true })]);
-  assert.equal(prochainARevele(p), null);
+test('prochainAEngager rend null quand tous ont fait piocher', () => {
+  const p = scenario([ennemi('a')], { ennemisPioches: ['a#e'] });
+  assert.equal(prochainAEngager(p), null);
+});
+
+test('un ennemi déjà révélé fait quand même piocher ses cartes', () => {
+  // Une Vision l'a retourné sur la piste : c'est son ACTION que la règle p.10
+  // dispense, pas sa pioche. Il était auparavant sauté, cartes comprises.
+  const p = scenario([ennemi('vu', undefined, { revele: true, cartes: 3 }), ennemi('neuf', undefined, { cartes: 2 })]);
+  const { partie } = resoudreRevelation(p, creerRng(1));
+
+  assert.equal(partie.champDeBataille.length, 5); // 3 + 2, et non 2
+  assert.deepEqual(partie.ennemisPioches, ['vu#e', 'neuf#e']);
+});
+
+test('un ennemi déjà révélé ne relance pas son action', () => {
+  const p = scenario([ennemi('vu', [{ type: 'OR', valeur: -3 }], { revele: true, cartes: 2 })]);
+  const { partie } = resoudreRevelation(p, creerRng(1));
+
+  assert.equal(partie.champDeBataille.length, 2); // ses cartes, oui
+  assert.equal(partie.ressources, p.ressources); // son action, non
+});
+
+test('un survivant redonne ses cartes au combat suivant', () => {
+  // `ennemisPioches` retombe à chaque fin de phase : le combat d'après repart
+  // de zéro, sans quoi un survivant ne ferait plus rien piocher.
+  const p = scenario([ennemi('costaud', undefined, { cartes: 3 })]);
+
+  const premier = resoudreRevelation(p, creerRng(1)).partie;
+  assert.equal(premier.champDeBataille.length, 3);
+
+  const combatSuivant = { ...premier, champDeBataille: [], ennemisPioches: [] };
+  assert.equal(resoudreRevelation(combatSuivant, creerRng(1)).partie.champDeBataille.length, 3);
 });
 
 test('chaque ennemi n’est pioché qu’une fois, malgré une relance', () => {
