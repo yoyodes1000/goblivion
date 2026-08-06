@@ -17,7 +17,7 @@ import {
   repondreDemande,
   annulerAction,
   passerPhase,
-  revelerProchainEnnemi,
+  engagerProchainEnnemi,
   resoudreLeCombat,
   engagerLeBoss,
   resoudreLeCombatBoss,
@@ -199,9 +199,18 @@ function auxPortes(id, effets) {
   return { instance: { instanceId: `${id}#e`, type }, revele: false, jetonBonus: 0 };
 }
 
-test('révéler un ennemi sans question pioche ses cartes et lance son action', () => {
-  const s = session({ portes: [auxPortes('gob', [{ type: 'OR', valeur: -2 }])] });
-  const apres = revelerProchainEnnemi(s, rng());
+/**
+ * Une session en phase Combat, ennemis aux Portes, aucun encore engagé.
+ * @param {import('../public/js/moteur/partie.js').EnnemiSurPiste[]} portes
+ * @param {Partial<import('../public/js/moteur/partie.js').Partie>} [overrides]
+ */
+function sessionPortes(portes, overrides = {}) {
+  return session({ phase: /** @type {any} */ ('COMBAT'), portes, ...overrides });
+}
+
+test('engager un ennemi sans question pioche ses cartes et lance son action', () => {
+  const s = sessionPortes([auxPortes('gob', [{ type: 'OR', valeur: -2 }])]);
+  const apres = engagerProchainEnnemi(s, rng());
 
   assert.equal(apres.enCours, null);
   assert.equal(apres.partie.portes[0]?.revele, true);
@@ -211,12 +220,12 @@ test('révéler un ennemi sans question pioche ses cartes et lance son action', 
 
 test('un ennemi dont l’action réclame une cible ouvre une question', () => {
   const paysan = bleu('fermier');
-  const s = session({
-    portes: [auxPortes('horde-de-gobelins', [{ type: 'SPECIAL', texte: 'envoyer un Paysan à l’Hôpital' }])],
-    champDeBataille: [paysan],
-  });
+  const s = sessionPortes(
+    [auxPortes('horde-de-gobelins', [{ type: 'SPECIAL', texte: 'envoyer un Paysan à l’Hôpital' }])],
+    { champDeBataille: [paysan] },
+  );
 
-  const ouverte = revelerProchainEnnemi(s, rng());
+  const ouverte = engagerProchainEnnemi(s, rng());
   assert.equal(ouverte.enCours?.genre, 'REVELATION');
   assert.equal(demandeCourante(ouverte)?.genre, 'CARTES');
 
@@ -227,27 +236,57 @@ test('un ennemi dont l’action réclame une cible ouvre une question', () => {
 });
 
 test('les ennemis se révèlent de gauche à droite, un par appel', () => {
-  const s = session({ portes: [auxPortes('a'), auxPortes('b')] });
+  const s = sessionPortes([auxPortes('a'), auxPortes('b')]);
 
-  const un = revelerProchainEnnemi(s, rng());
+  const un = engagerProchainEnnemi(s, rng());
   assert.equal(un.partie.portes[0]?.revele, true);
   assert.equal(un.partie.portes[1]?.revele, false);
 
-  const deux = revelerProchainEnnemi(un, rng());
+  const deux = engagerProchainEnnemi(un, rng());
   assert.equal(deux.partie.portes[1]?.revele, true);
 });
 
-test('plus rien à révéler donne un message', () => {
-  const s = revelerProchainEnnemi(session({ portes: [auxPortes('gob')] }), rng());
-  assert.match(revelerProchainEnnemi(s, rng()).erreur ?? '', /sont révélés/);
+test('plus rien à engager donne un message', () => {
+  const s = engagerProchainEnnemi(sessionPortes([auxPortes('gob')]), rng());
+  assert.match(engagerProchainEnnemi(s, rng()).erreur ?? '', /ont déjà fait piocher/);
+});
+
+test('engager hors de la phase Combat est refusé', () => {
+  // Un survivant campe aux Portes tout le tour, et son compteur repart à chaque
+  // phase : sans ce refus, on l'engagerait depuis l'Entraînement.
+  const s = session({ portes: [auxPortes('gob')] }); // phase Entraînement
+  assert.match(engagerProchainEnnemi(s, rng()).erreur ?? '', /phase Combat/);
+});
+
+test('un ennemi déjà révélé fait piocher ses cartes, sans relancer son action', () => {
+  // Le bug d'origine : retourné par une Vision, il était sauté — ses cartes
+  // avec. Règle p.11, étape 1 : révéler, PIOCHER, puis lancer l'action ; et
+  // p.10, seule l'action est dispensée pour un ennemi déjà révélé.
+  const vu = { ...auxPortes('vu', [{ type: 'OR', valeur: -2 }]), revele: true };
+  const s = sessionPortes([vu, auxPortes('neuf')]);
+
+  const un = engagerProchainEnnemi(s, rng());
+  assert.equal(un.partie.champDeBataille.length, 1); // il a bien pioché
+  assert.equal(un.partie.ressources, s.partie.ressources); // mais n'a pas rejoué son action
+
+  const deux = engagerProchainEnnemi(un, rng());
+  assert.equal(deux.partie.champDeBataille.length, 2); // les deux ont donné leurs cartes
+});
+
+test('le combat n’est résoluble qu’une fois tous les ennemis engagés', () => {
+  const vu = { ...auxPortes('vu'), revele: true };
+  const s = sessionPortes([vu]);
+
+  // Déjà révélé, mais il n'a pas encore fait piocher : le combat attend.
+  assert.match(resoudreLeCombat(s, rng()).erreur ?? '', /Engage d’abord/);
+  assert.equal(resoudreLeCombat(engagerProchainEnnemi(s, rng()), rng()).erreur, null);
 });
 
 test('« l’ennemi avance » déclenché par une révélation fait glisser la piste', () => {
-  const s = session({
-    portes: [auxPortes('commandant', [{ type: 'ENNEMI_AVANCE' }])],
+  const s = sessionPortes([auxPortes('commandant', [{ type: 'ENNEMI_AVANCE' }])], {
     pisteEnnemi: [null, null, null],
   });
-  const apres = revelerProchainEnnemi(s, rng());
+  const apres = engagerProchainEnnemi(s, rng());
 
   assert.equal(apres.partie.pisteEnnemi.filter(Boolean).length, 1);
   assert.equal(apres.partie.portes[0]?.revele, true);
@@ -264,10 +303,24 @@ function revele(id, force) {
   return { instance: { instanceId: `${id}#e`, type }, revele: true, jetonBonus: 0 };
 }
 
-test('victoire : le combat se résout seul, sans question', () => {
-  const s = session({
+/**
+ * Une session en phase Combat dont les ennemis ont tous fait piocher : l'état
+ * où la résolution est possible. C'est `ennemisPioches` qui l'autorise, pas
+ * `revele` — un ennemi retourné d'avance doit encore donner ses cartes.
+ * @param {import('../public/js/moteur/partie.js').EnnemiSurPiste[]} portes
+ * @param {Partial<import('../public/js/moteur/partie.js').Partie>} [overrides]
+ */
+function sessionCombat(portes, overrides = {}) {
+  return session({
     phase: /** @type {any} */ ('COMBAT'),
-    portes: [revele('gob', 2)],
+    portes,
+    ennemisPioches: portes.map((e) => e.instance.instanceId),
+    ...overrides,
+  });
+}
+
+test('victoire : le combat se résout seul, sans question', () => {
+  const s = sessionCombat([revele('gob', 2)], {
     champDeBataille: [bleu('gentilhomme')], // force 2
   });
   const apres = resoudreLeCombat(s, rng());
@@ -279,9 +332,7 @@ test('victoire : le combat se résout seul, sans question', () => {
 });
 
 test('défaite : la question de la répartition s’ouvre, la partie intacte', () => {
-  const s = session({
-    phase: /** @type {any} */ ('COMBAT'),
-    portes: [revele('faible', 2), revele('costaud', 9)],
+  const s = sessionCombat([revele('faible', 2), revele('costaud', 9)], {
     champDeBataille: [bleu('gentilhomme')], // force 2
   });
   const apres = resoudreLeCombat(s, rng());
@@ -293,9 +344,7 @@ test('défaite : la question de la répartition s’ouvre, la partie intacte', (
 });
 
 test('défaite : abattre un ennemi qu’on égale, l’autre survit avec un jeton', () => {
-  const s = session({
-    phase: /** @type {any} */ ('COMBAT'),
-    portes: [revele('faible', 2), revele('costaud', 9)],
+  const s = sessionCombat([revele('faible', 2), revele('costaud', 9)], {
     champDeBataille: [bleu('gentilhomme')],
   });
   const apres = repondreDemande(resoudreLeCombat(s, rng()), ['0'], rng());
@@ -308,11 +357,7 @@ test('défaite : abattre un ennemi qu’on égale, l’autre survit avec un jeto
 });
 
 test('défaite : n’abattre personne est un choix valable', () => {
-  const s = session({
-    phase: /** @type {any} */ ('COMBAT'),
-    portes: [revele('costaud', 9)],
-    champDeBataille: [],
-  });
+  const s = sessionCombat([revele('costaud', 9)], { champDeBataille: [] });
   const apres = repondreDemande(resoudreLeCombat(s, rng()), [], rng());
 
   assert.equal(apres.enCours, null);
@@ -321,9 +366,7 @@ test('défaite : n’abattre personne est un choix valable', () => {
 });
 
 test('défaite : viser plus que sa Force est refusé, la question reste ouverte', () => {
-  const s = session({
-    phase: /** @type {any} */ ('COMBAT'),
-    portes: [revele('a', 3), revele('b', 3)],
+  const s = sessionCombat([revele('a', 3), revele('b', 3)], {
     champDeBataille: [bleu('gentilhomme')], // force 2, insuffisante pour l'un ou l'autre
   });
   const apres = repondreDemande(resoudreLeCombat(s, rng()), ['0'], rng());
@@ -332,9 +375,9 @@ test('défaite : viser plus que sa Force est refusé, la question reste ouverte'
   assert.equal(apres.enCours?.genre, 'COMBAT'); // on peut se corriger
 });
 
-test('combattre est refusé tant qu’un ennemi n’est pas révélé', () => {
+test('combattre est refusé tant qu’un ennemi n’a pas fait piocher', () => {
   const s = session({ phase: /** @type {any} */ ('COMBAT'), portes: [auxPortes('gob')] });
-  assert.match(resoudreLeCombat(s, rng()).erreur ?? '', /Révèle d’abord/);
+  assert.match(resoudreLeCombat(s, rng()).erreur ?? '', /Engage d’abord/);
 });
 
 test('combattre sans ennemi aux Portes n’a pas de sens', () => {
@@ -617,7 +660,7 @@ test('partie perdue : toutes les actions sont refusées', () => {
   assert.match(passerPhase(s).erreur ?? '', /perdue/);
   assert.match(commencerPouvoir(s, rng()).erreur ?? '', /perdue/);
   assert.match(commencerEntrainement(s, 'batisseur', rng()).erreur ?? '', /perdue/);
-  assert.match(revelerProchainEnnemi(s, rng()).erreur ?? '', /perdue/);
+  assert.match(engagerProchainEnnemi(s, rng()).erreur ?? '', /perdue/);
   assert.equal(passerPhase(s).partie.phase, s.partie.phase); // rien n'a bougé
 });
 

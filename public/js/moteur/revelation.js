@@ -21,8 +21,11 @@ import { avancerEnnemis } from './ennemi-avance.js';
  * réinitialise), donc cette transition false → true *est* « la première fois »
  * (règle p.10 : une carte déjà révélée avant le début du tour ne relance pas
  * son action). Un ennemi déjà révélé (tour précédent ou Vision) est donc un
- * no-op complet ici — ne pioche pas non plus : la pioche est inconditionnelle
- * et reste la responsabilité de `resoudreRevelation`.
+ * no-op ici.
+ *
+ * Sa PIOCHE, elle, a lieu quand même : c'est l'action que la règle dispense,
+ * pas les cartes qu'il fait tirer. Elle n'est pas notre affaire — voir
+ * `piocherPourEnnemi`, appelée avant nous quel que soit l'état de `revele`.
  *
  * `JETON_ENNEMI` est traité ici, pas dans `executerEffets` : sa cible est
  * l'ennemi en cours de révélation, connu de ce dispatcher, pas de l'exécuteur
@@ -73,27 +76,39 @@ export function revelerAuxPortes(partie, index, choix, rng) {
 }
 
 /**
- * L'ennemi qu'il reste à révéler : le plus à gauche des Portes qui ne l'est pas
- * encore (règles p.11, étapes 1-2), ou `null` quand tous le sont.
+ * L'ennemi qu'il reste à engager : le plus à gauche des Portes dont on n'a pas
+ * encore pioché les cartes dans CE combat (règles p.11, étapes 1-2), ou `null`
+ * quand tous y sont passés.
  *
- * `revele` sert ici de marqueur d'avancement, et c'est ce qui rend la
- * révélation reprenable pas à pas : les nouveaux ennemis arrivés en cours de
- * combat sont non révélés, donc ramassés d'eux-mêmes au tour de boucle suivant
- * — la « reprise à l'étape 1 » des règles n'a pas à être codée.
+ * Le marqueur d'avancement est `ennemisPioches`, PAS `revele`. Les deux se
+ * confondaient, et la confusion coûtait des cartes : un ennemi retourné plus
+ * tôt par une Vision, ou survivant du combat précédent, arrive aux Portes déjà
+ * révélé — il était alors sauté, et ses cartes jamais piochées. Or c'est son
+ * ACTION que la règle p.10 dispense, pas sa pioche : l'étape 1 est « révéler,
+ * piocher le nombre indiqué, puis lancer son action ».
+ *
+ * `ennemisPioches` étant remis à zéro à chaque fin de phase (voir
+ * `terminerPhase`), chaque combat repart de zéro. Et les ennemis arrivés en
+ * cours de combat n'y figurent pas : ils sont ramassés d'eux-mêmes au tour de
+ * boucle suivant, la « reprise à l'étape 1 » des règles n'a pas à être codée.
  * @param {Partie} partie
  * @returns {number | null}
  */
-export function prochainARevele(partie) {
-  const index = partie.portes.findIndex((e) => !e.revele);
+export function prochainAEngager(partie) {
+  const index = partie.portes.findIndex(
+    (e) => !partie.ennemisPioches.includes(e.instance.instanceId),
+  );
   return index === -1 ? null : index;
 }
 
 /**
- * Pioche les cartes d'un ennemi des Portes, préalable à sa révélation.
+ * Pioche les cartes d'un ennemi des Portes, et le note comme engagé.
  *
  * Séparé de `revelerAuxPortes` pour que l'appelant puisse s'intercaler : une
  * action REVELATION qui réclame une cible (Gobelin vachelier, Horde de
  * Gobelins, Sorcière troll) ne peut la désigner qu'une fois ces cartes vues.
+ * C'est ici qu'on inscrit l'ennemi dans `ennemisPioches` : piocher ses cartes
+ * *est* ce qui fait qu'on l'a traité, révélation ou non.
  * @param {Partie} partie
  * @param {number} index
  * @param {() => number} rng
@@ -103,21 +118,25 @@ export function piocherPourEnnemi(partie, index, rng) {
   const ennemi = partie.portes[index];
   if (!ennemi) throw new Error('Aucun ennemi à cet index des Portes');
 
-  return piocher(partie, ennemi.instance.type.cartes, rng);
+  const engage = Object.freeze({
+    ...partie,
+    ennemisPioches: [...partie.ennemisPioches, ennemi.instance.instanceId],
+  });
+  return piocher(engage, ennemi.instance.type.cartes, rng);
 }
 
 /**
- * Résout toute la révélation du Combat d'un trait : pour chaque ennemi non
- * encore révélé, de gauche à droite, pioche ses cartes puis lance son action.
+ * Résout tout le début du Combat d'un trait : pour chaque ennemi aux Portes, de
+ * gauche à droite, pioche ses cartes puis lance son action s'il ne l'a jamais
+ * lancée.
  *
- * Chaque ennemi n'est pioché QU'UNE FOIS, à sa révélation : la pioche est
- * l'étape 1 des règles, indissociable du fait de révéler. Une version
- * antérieure reprenait la boucle depuis le début après « l'ennemi avance » et
- * repiochait pour les ennemis déjà traités.
+ * Chaque ennemi n'est pioché QU'UNE FOIS PAR COMBAT, `ennemisPioches` en
+ * faisant foi. Une version antérieure reprenait la boucle depuis le début après
+ * « l'ennemi avance » et repiochait pour les ennemis déjà traités.
  *
  * Ne prend pas de `choix` : elle ne convient donc qu'aux ennemis dont l'action
  * n'en réclame aucun. Une interface qui laisse le joueur désigner ses cibles
- * enchaîne plutôt `prochainARevele` / `piocherPourEnnemi` / `revelerAuxPortes`
+ * enchaîne plutôt `prochainAEngager` / `piocherPourEnnemi` / `revelerAuxPortes`
  * elle-même.
  * @param {Partie} partie
  * @param {() => number} rng
@@ -127,7 +146,7 @@ export function resoudreRevelation(partie, rng) {
   let etat = partie;
   let reconstitutions = 0;
 
-  for (let index = prochainARevele(etat); index !== null; index = prochainARevele(etat)) {
+  for (let index = prochainAEngager(etat); index !== null; index = prochainAEngager(etat)) {
     const rPioche = piocherPourEnnemi(etat, index, rng);
     etat = rPioche.partie;
     reconstitutions += rPioche.reconstitutions;

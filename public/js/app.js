@@ -18,7 +18,7 @@ import {
   conclureEntrainement,
   renoncerALEntrainement,
   echangerLeGardeDuCorps,
-  revelerProchainEnnemi,
+  engagerProchainEnnemi,
   resoudreLeCombat,
   engagerLeBoss,
   resoudreLeCombatBoss,
@@ -107,8 +107,8 @@ racine.addEventListener('click', (evenement) => {
     case 'garde':
       appliquer(echangerLeGardeDuCorps(session, declencheur.dataset['id'] ?? '', rng));
       break;
-    case 'reveler':
-      appliquer(revelerProchainEnnemi(session, rng));
+    case 'engager-ennemi':
+      appliquer(engagerProchainEnnemi(session, rng));
       break;
     case 'combattre':
       appliquer(resoudreLeCombat(session, rng));

@@ -50,6 +50,7 @@ import { phaseSuivante } from './phases.js';
  * @property {boolean} jetonsIgnores                 Jetons bonus alliés annulés pour ce combat (Gobelin pestilant).
  * @property {boolean} orBloque                      Aucun gain d'or pour ce combat (Troll saboteur) ; les pertes s'appliquent.
  * @property {readonly string[]} cartesActivees      instanceId des cartes « pivotées » (activées) cette phase.
+ * @property {readonly string[]} ennemisPioches      instanceId des ennemis dont les cartes ont été piochées CE combat.
  * @property {number} jetonsBonusDepart              Jetons +2 en main (mode Facile).
  * @property {InstanceAlliee[]} chateau              Pioche, faces cachées (index 0 = dessus).
  * @property {InstanceAlliee[]} hopital              Défausse, faces visibles.
@@ -66,7 +67,8 @@ import { phaseSuivante } from './phases.js';
 /**
  * Termine une phase : les cartes en jeu rejoignent l'Hôpital, et les états qui
  * ne valaient que le temps de la phase (`gardeDuCorpsEchange`,
- * `cartesActivees`) ou du combat (`jetonsIgnores`, `orBloque`) retombent.
+ * `cartesActivees`, `ennemisPioches`) ou du combat (`jetonsIgnores`,
+ * `orBloque`) retombent.
  *
  * Le vidage du Champ de bataille est une règle générale (p.7 : « à la fin de
  * chaque phase, les cartes en jeu quittent le Champ de bataille pour
@@ -88,6 +90,9 @@ export function terminerPhase(partie) {
     ...viderChampDeBataille(partie),
     gardeDuCorpsEchange: false,
     cartesActivees: [],
+    // Chaque combat repart de zéro : les ennemis restés aux Portes redonnent
+    // leurs cartes, survivants comme nouveaux venus.
+    ennemisPioches: [],
     jetonsIgnores: false,
     orBloque: false,
   });

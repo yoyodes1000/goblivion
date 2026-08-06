@@ -483,12 +483,13 @@ function rendreCommandes(vue, actionOuverte, tentativeBoss, entrainementEngage) 
     section.append(conclure, renoncer);
   }
 
-  // La révélation se fait ennemi par ennemi : le joueur voit chaque pioche et
-  // chaque action avant de passer au suivant.
-  if (vue.ennemisARevele > 0) {
-    const reveler = bouton(`Révéler l’ennemi suivant (${vue.ennemisARevele})`, 'reveler');
-    reveler.disabled = actionOuverte;
-    section.append(reveler);
+  // Les ennemis s'engagent un par un : le joueur voit chaque pioche et chaque
+  // action avant de passer au suivant. « Engager » plutôt que « Révéler » —
+  // un ennemi déjà retourné fait piocher lui aussi, sans rien révéler.
+  if (vue.ennemisAEngager > 0) {
+    const engager = bouton(`Engager l’ennemi suivant (${vue.ennemisAEngager})`, 'engager-ennemi');
+    engager.disabled = actionOuverte;
+    section.append(engager);
   }
 
   if (vue.combatResoluble) {

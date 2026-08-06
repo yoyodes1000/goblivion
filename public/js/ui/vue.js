@@ -148,8 +148,8 @@ const DOS_ENNEMI = 'dos-ennemi';
  * @property {ZoneCacheeVue} pileEnnemi
  * @property {(EnnemiVue | null)[]} pisteEnnemi
  * @property {EnnemiVue[]} portes
- * @property {number} ennemisARevele   Combien restent à révéler aux Portes.
- * @property {boolean} combatResoluble Tous révélés, le combat peut se conclure.
+ * @property {number} ennemisAEngager  Combien d'ennemis n'ont pas encore fait piocher leurs cartes.
+ * @property {boolean} combatResoluble Tous engagés, le combat peut se conclure.
  * @property {number} bossRestants
  * @property {BossVue | null} boss   Le Boss affronté ; `null` hors combat des Boss.
  * @property {PileMarcheVue[]} marche
@@ -329,9 +329,17 @@ export function construireVue(partie) {
 
     pisteEnnemi: partie.pisteEnnemi.map((e) => (e ? ennemiVue(e) : null)),
     portes: partie.portes.map(ennemiVue),
-    ennemisARevele: partie.portes.filter((e) => !e.revele).length,
+    // Ce qui reste à faire, c'est piocher pour eux — pas les retourner. Un
+    // ennemi déjà révélé (Vision, survivant) doit encore donner ses cartes.
+    //
+    // Hors phase Combat, personne n'est à engager : un survivant campe aux
+    // Portes tout le tour, et son compteur repartant à chaque phase, la
+    // commande se serait invitée jusque dans l'Entraînement.
+    ennemisAEngager: partie.phase !== 'COMBAT' ? 0 : partie.portes.filter(
+      (e) => !partie.ennemisPioches.includes(e.instance.instanceId),
+    ).length,
     combatResoluble: partie.phase === 'COMBAT' && partie.portes.length > 0
-      && partie.portes.every((e) => e.revele),
+      && partie.portes.every((e) => partie.ennemisPioches.includes(e.instance.instanceId)),
 
     // Les Boss sont faces cachées jusqu'à être affrontés : leur nombre suffit.
     bossRestants: partie.boss.length,
