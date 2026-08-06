@@ -15,6 +15,7 @@
 import { passerALaPhaseSuivante, issuePartie } from '../moteur/orchestration.js';
 import { activerPivoter } from '../moteur/pivoter.js';
 import { activerPouvoir } from '../moteur/pouvoir.js';
+import { echangerGardeDuCorps } from '../moteur/garde-du-corps.js';
 import {
   obstacleEntrainement,
   piocherPourEntrainement,
@@ -47,9 +48,9 @@ import {
  * imbriquer. ENTRAINEMENT, lui, n'exécute aucun effet — il demande une OPTION,
  * la carte à sacrifier, et sa question est donc fabriquée telle quelle.
  * @typedef {object} ActionEnCours
- * @property {'PIVOTER' | 'POUVOIR' | 'ENTRAINEMENT' | 'REVELATION' | 'REVELATION_BOSS' | 'COMBAT'} genre
+ * @property {'PIVOTER' | 'POUVOIR' | 'ENTRAINEMENT' | 'REVELATION' | 'REVELATION_BOSS' | 'COMBAT' | 'GARDE_DU_CORPS'} genre
  * @property {string} libelle              Ce qu'on est en train de jouer, pour l'afficher.
- * @property {string} [instanceId]         La carte activée (PIVOTER seulement).
+ * @property {string} [instanceId]         La carte visée (PIVOTER et GARDE_DU_CORPS).
  * @property {string} [doreId]             La Doré convoitée (ENTRAINEMENT seulement).
  * @property {number} [indexEnnemi]        L'ennemi révélé (REVELATION seulement).
  * @property {EtatCollecte} [collecte]     Absente pour un entraînement.
@@ -62,6 +63,7 @@ import {
  * @property {ActionEnCours | null} enCours   Aucune action ouverte quand `null`.
  * @property {string | null} erreur           Dernier refus du moteur, à afficher.
  * @property {boolean} tentativeBoss          Tentative de combat de Boss engagée : voir `engagerLeBoss`.
+ * @property {string | null} entrainementEngage  id de la Doré dont le jeton est posé : voir `commencerEntrainement`.
  */
 
 /**
@@ -69,7 +71,13 @@ import {
  * @returns {Session}
  */
 export function nouvelleSession(partie) {
-  return Object.freeze({ partie, enCours: null, erreur: null, tentativeBoss: false });
+  return Object.freeze({
+    partie,
+    enCours: null,
+    erreur: null,
+    tentativeBoss: false,
+    entrainementEngage: null,
+  });
 }
 
 /**
@@ -108,6 +116,11 @@ function executer(session, action, rng) {
     // en mode Boss, et un Château vidé s'y paie en ressources (`revelerBoss`).
     if (action.genre === 'REVELATION_BOSS') {
       const partie = revelerBoss(session.partie, choix, rng);
+      return Object.freeze({ ...session, partie, enCours: null, erreur: null });
+    }
+
+    if (action.genre === 'GARDE_DU_CORPS') {
+      const partie = echangerGardeDuCorps(session.partie, action.instanceId ?? '', choix, rng);
       return Object.freeze({ ...session, partie, enCours: null, erreur: null });
     }
 
@@ -176,6 +189,13 @@ export function commencerPivoter(session, instanceId, rng) {
   const finie = refusSiTerminee(session);
   if (finie) return finie;
 
+  // Sans ce refus, activer une carte pendant qu'une question est ouverte
+  // écrasait l'action en attente — et un entraînement engagé, dont le jeton est
+  // déjà posé, était perdu pour le tour.
+  if (session.enCours) {
+    return Object.freeze({ ...session, erreur: 'Termine l’action en cours d’abord' });
+  }
+
   const carte = session.partie.champDeBataille.find((c) => c.instanceId === instanceId);
   if (!carte) {
     return Object.freeze({ ...session, erreur: 'Carte absente du Champ de bataille' });
@@ -214,6 +234,9 @@ export function commencerPouvoir(session, rng) {
   const finie = refusSiTerminee(session);
   if (finie) return finie;
 
+  if (session.enCours) {
+    return Object.freeze({ ...session, erreur: 'Termine l’action en cours d’abord' });
+  }
   if (session.partie.pouvoirUtilise) {
     return Object.freeze({ ...session, erreur: 'Le pouvoir Roi/Reine a déjà été utilisé' });
   }
@@ -405,12 +428,17 @@ export function resoudreLeCombatBoss(session) {
 }
 
 /**
- * Ouvre un entraînement : pioche aussitôt, puis demande quelle carte sacrifier.
+ * Ouvre un entraînement : pose le jeton et pioche, sans rien demander encore.
  *
  * La pioche est ENGAGÉE dès ce moment — elle est faite, elle ne se reprend pas.
- * C'est fidèle aux règles : on pioche, puis on décide de poursuivre ou non.
- * Renoncer (voir `annulerAction`) laisse donc les cartes en jeu, prêtes pour le
- * combat, au prix de la Doré convoitée.
+ * Ce qui suit appartient au joueur : les règles (p.9, étape 3) le laissent
+ * « utiliser les actions des cartes en jeu » et échanger son Garde du corps
+ * AVANT de comparer sa Force à la cible. D'où deux commandes, comme pour les
+ * Boss : celle-ci pioche, `conclureEntrainement` demande le sacrifice.
+ *
+ * Demander le sacrifice tout de suite revenait à interdire l'étape 3 : la
+ * moindre activation écrasait la question, et l'entraînement du tour était
+ * perdu avec elle.
  * @param {Session} session
  * @param {string} doreId
  * @param {() => number} rng
@@ -420,17 +448,42 @@ export function commencerEntrainement(session, doreId, rng) {
   const finie = refusSiTerminee(session);
   if (finie) return finie;
 
+  if (session.enCours) {
+    return Object.freeze({ ...session, erreur: 'Termine l’action en cours d’abord' });
+  }
+
   const obstacle = obstacleEntrainement(session.partie, doreId);
   if (obstacle) return Object.freeze({ ...session, erreur: obstacle });
+
+  const { partie } = piocherPourEntrainement(session.partie, doreId, rng);
+  return Object.freeze({ ...session, partie, erreur: null, entrainementEngage: doreId });
+}
+
+/**
+ * Demande quelle carte sacrifier, une fois les cartes jouées. Les candidats et
+ * le prix sont calculés MAINTENANT : c'est tout l'intérêt d'avoir attendu, la
+ * Force en jeu ayant pu monter entre-temps.
+ * @param {Session} session
+ * @returns {Session}
+ */
+export function conclureEntrainement(session) {
+  const finie = refusSiTerminee(session);
+  if (finie) return finie;
+
+  if (session.enCours) {
+    return Object.freeze({ ...session, erreur: 'Termine l’action en cours d’abord' });
+  }
+
+  const doreId = session.entrainementEngage;
+  if (!doreId) return Object.freeze({ ...session, erreur: 'Aucun entraînement en cours' });
 
   const dore = dores.find((d) => d.id === doreId);
   if (!dore) return Object.freeze({ ...session, erreur: `Carte Doré inconnue : ${doreId}` });
 
-  const { partie } = piocherPourEntrainement(session.partie, doreId, rng);
-  const cout = coutEntrainement(partie, doreId);
+  const cout = coutEntrainement(session.partie, doreId);
   const echange = dore.entrainement.echange;
 
-  const options = partie.champDeBataille
+  const options = session.partie.champDeBataille
     .filter((c) => c.type.symbole === echange)
     .map((c) => ({ valeur: c.instanceId, libelle: c.type.nom }));
 
@@ -449,7 +502,79 @@ export function commencerEntrainement(session, doreId, rng) {
     },
   };
 
-  return Object.freeze({ ...session, partie, erreur: null, enCours });
+  return Object.freeze({ ...session, erreur: null, enCours });
+}
+
+/**
+ * Renonce à l'entraînement engagé : la main tirée rejoint l'Hôpital et la Doré
+ * reste sur sa pile. C'est l'arrêt que prévoient les règles quand la cible
+ * n'est pas atteinte et qu'on ne veut pas la payer. Le jeton, lui, est posé
+ * pour le tour.
+ * @param {Session} session
+ * @returns {Session}
+ */
+export function renoncerALEntrainement(session) {
+  const finie = refusSiTerminee(session);
+  if (finie) return finie;
+
+  if (!session.entrainementEngage) {
+    return Object.freeze({ ...session, erreur: 'Aucun entraînement en cours' });
+  }
+
+  return Object.freeze({
+    ...session,
+    partie: renoncerEntrainement(session.partie),
+    enCours: null,
+    erreur: null,
+    entrainementEngage: null,
+  });
+}
+
+/**
+ * Fait passer une carte du Champ de bataille Garde du corps ; l'ancien Garde du
+ * corps redescend au Champ de bataille et compte de nouveau pour la Force. Une
+ * seule fois par phase, et jamais contre une carte déjà activée — le moteur
+ * tranche, on ne recopie pas ses conditions.
+ *
+ * Si la carte a une action GARDE_DU_CORPS, ses choix sont recueillis d'abord.
+ * Ils sont calculés sur l'état d'AVANT l'échange : aucune action de ce
+ * déclencheur ne puise ses candidats dans le Champ de bataille (le Prêtre
+ * cherche à l'Hôpital, le Guetteur regarde la piste), les deux états donnent
+ * donc les mêmes options — et la collecte n'est de toute façon qu'une aide à
+ * la saisie, le moteur restant le gardien.
+ * @param {Session} session
+ * @param {string} instanceId
+ * @param {() => number} rng
+ * @returns {Session}
+ */
+export function echangerLeGardeDuCorps(session, instanceId, rng) {
+  const finie = refusSiTerminee(session);
+  if (finie) return finie;
+
+  if (session.enCours) {
+    return Object.freeze({ ...session, erreur: 'Termine l’action en cours d’abord' });
+  }
+
+  const carte = session.partie.champDeBataille.find((c) => c.instanceId === instanceId);
+  if (!carte) {
+    return Object.freeze({ ...session, erreur: 'Carte absente du Champ de bataille' });
+  }
+
+  const action = carte.type.actions.find((a) => a.declencheur === 'GARDE_DU_CORPS');
+
+  return ouvrir(
+    session,
+    {
+      genre: 'GARDE_DU_CORPS',
+      libelle: `${carte.type.nom} passe Garde du corps`,
+      instanceId,
+      collecte: demarrerCollecte(session.partie, action?.effets ?? [], {
+        typeId: carte.type.id,
+        carteActiveeId: instanceId,
+      }),
+    },
+    rng,
+  );
 }
 
 /**
@@ -488,7 +613,13 @@ export function repondreDemande(session, valeurs, rng) {
         { doreId: action.doreId ?? '', sacrifieInstanceId: sacrifieInstanceId ?? '' },
         rng,
       );
-      return Object.freeze({ ...session, partie, enCours: null, erreur: null });
+      return Object.freeze({
+        ...session,
+        partie,
+        enCours: null,
+        erreur: null,
+        entrainementEngage: null,
+      });
     } catch (erreur) {
       // La question reste ouverte : un refus (mauvais symbole, or insuffisant)
       // doit pouvoir se corriger en désignant une autre carte, pas coûter
@@ -502,23 +633,16 @@ export function repondreDemande(session, valeurs, rng) {
 }
 
 /**
- * Abandonne l'action en cours.
+ * Referme la question en cours sans y répondre. La partie n'a pas bougé : une
+ * collecte n'a aucun effet de bord, et la question du sacrifice non plus.
  *
- * Pour une action de carte, la partie n'a pas bougé : la collecte n'a aucun
- * effet de bord. Pour un entraînement, la pioche est déjà faite et le reste —
- * c'est l'arrêt que prévoient les règles, et il garde les cartes en jeu.
+ * N'abandonne PAS l'entraînement engagé : renoncer est une décision à part
+ * (voir `renoncerALEntrainement`), et refermer la question laisse au joueur de
+ * quoi activer une carte de plus avant de reposer la même.
  * @param {Session} session
  * @returns {Session}
  */
 export function annulerAction(session) {
-  if (session.enCours?.genre === 'ENTRAINEMENT') {
-    return Object.freeze({
-      ...session,
-      partie: renoncerEntrainement(session.partie),
-      enCours: null,
-      erreur: null,
-    });
-  }
   return Object.freeze({ ...session, enCours: null, erreur: null });
 }
 

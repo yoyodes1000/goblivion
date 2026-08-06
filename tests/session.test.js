@@ -21,6 +21,9 @@ import {
   resoudreLeCombat,
   engagerLeBoss,
   resoudreLeCombatBoss,
+  conclureEntrainement,
+  renoncerALEntrainement,
+  echangerLeGardeDuCorps,
 } from '../public/js/ui/session.js';
 
 const rng = () => creerRng(1);
@@ -337,6 +340,160 @@ test('combattre est refusé tant qu’un ennemi n’est pas révélé', () => {
 test('combattre sans ennemi aux Portes n’a pas de sens', () => {
   const s = session({ phase: /** @type {any} */ ('COMBAT'), portes: [] });
   assert.match(resoudreLeCombat(s, rng()).erreur ?? '', /pas de combat/);
+});
+
+// ── Entraînement en deux temps ──────────────────────────────────────────────
+
+/**
+ * Une session en phase Entraînement dont le Château ne contient que les cartes
+ * données : la pioche de l'entraînement ramène exactement celles-là.
+ * @param {import('../public/js/moteur/partie.js').InstanceAlliee[]} chateau
+ */
+function sessionEntrainement(chateau) {
+  return session({ phase: /** @type {any} */ ('ENTRAINEMENT'), chateau });
+}
+
+test('engager un entraînement pioche sans rien demander encore', () => {
+  // Archer : piocher 3, cible 2, échanger un Paysan.
+  const s = sessionEntrainement([bleu('fermier'), bleu('gentilhomme'), bleu('vieux')]);
+  const apres = commencerEntrainement(s, 'archer', rng());
+
+  assert.equal(apres.enCours, null);
+  assert.equal(demandeCourante(apres), null); // la question du sacrifice attend
+  assert.equal(apres.entrainementEngage, 'archer');
+  assert.equal(apres.partie.champDeBataille.length, 3);
+  assert.equal(apres.partie.entrainementUtilise, true);
+});
+
+test('on peut activer une carte pendant un entraînement engagé', () => {
+  // Le bug d'origine : activer l'Enfant écrasait la question du sacrifice, et
+  // l'entraînement du tour était perdu avec elle. Les règles (p.9, étape 3)
+  // demandent au contraire de pouvoir jouer ses cartes à ce moment.
+  const s = sessionEntrainement([bleu('boulanger'), bleu('fermier'), bleu('gentilhomme')]);
+  const engage = commencerEntrainement(s, 'archer', rng());
+  const apres = commencerPivoter(engage, 'boulanger#x', rng()); // Boulanger : +1 or
+
+  assert.equal(apres.erreur, null);
+  assert.equal(apres.entrainementEngage, 'archer'); // toujours là
+  assert.equal(apres.partie.ressources, engage.partie.ressources + 1);
+  assert.ok(apres.partie.cartesActivees.includes('boulanger#x'));
+});
+
+test('conclure demande le sacrifice, avec les cartes du moment', () => {
+  const s = sessionEntrainement([bleu('fermier'), bleu('gentilhomme'), bleu('epee')]);
+  const apres = conclureEntrainement(commencerEntrainement(s, 'archer', rng()));
+
+  assert.equal(apres.enCours?.genre, 'ENTRAINEMENT');
+  const demande = demandeCourante(apres);
+  // L'Archer s'échange contre un Paysan : l'Épée, un Objet, n'est pas proposée.
+  assert.deepEqual(demande?.options.map((o) => o.valeur), ['fermier#x', 'gentilhomme#x']);
+});
+
+test('répondre au sacrifice conclut l’entraînement', () => {
+  const s = sessionEntrainement([bleu('fermier'), bleu('gentilhomme'), bleu('vieux')]);
+  const ouverte = conclureEntrainement(commencerEntrainement(s, 'archer', rng()));
+  const apres = repondreDemande(ouverte, ['vieux#x'], rng());
+
+  assert.equal(apres.enCours, null);
+  assert.equal(apres.entrainementEngage, null);
+  assert.equal(apres.partie.champDeBataille.length, 0);
+  assert.ok(apres.partie.hopital.some((c) => c.type.id === 'archer'));
+  assert.equal(apres.partie.hopital.some((c) => c.instanceId === 'vieux#x'), false); // détruit
+});
+
+test('annuler la question du sacrifice ne renonce pas à l’entraînement', () => {
+  const s = sessionEntrainement([bleu('fermier'), bleu('gentilhomme'), bleu('vieux')]);
+  const ouverte = conclureEntrainement(commencerEntrainement(s, 'archer', rng()));
+  const apres = annulerAction(ouverte);
+
+  assert.equal(apres.enCours, null);
+  assert.equal(apres.entrainementEngage, 'archer'); // on peut encore jouer, puis reposer la question
+  assert.equal(apres.partie.champDeBataille.length, 3);
+  assert.equal(conclureEntrainement(apres).enCours?.genre, 'ENTRAINEMENT');
+});
+
+test('renoncer rend la main tirée à l’Hôpital et libère l’entraînement', () => {
+  const s = sessionEntrainement([bleu('fermier'), bleu('gentilhomme'), bleu('vieux')]);
+  const apres = renoncerALEntrainement(commencerEntrainement(s, 'archer', rng()));
+
+  assert.equal(apres.entrainementEngage, null);
+  assert.equal(apres.partie.champDeBataille.length, 0);
+  assert.equal(apres.partie.hopital.length, 3);
+  assert.equal(apres.partie.entrainementUtilise, true); // le jeton reste posé pour le tour
+});
+
+test('conclure ou renoncer sans entraînement engagé donne un message', () => {
+  const s = sessionEntrainement([]);
+  assert.match(conclureEntrainement(s).erreur ?? '', /Aucun entraînement/);
+  assert.match(renoncerALEntrainement(s).erreur ?? '', /Aucun entraînement/);
+});
+
+// ── Rien ne s'ouvre par-dessus une question ─────────────────────────────────
+
+test('activer une carte pendant qu’une question est posée est refusé', () => {
+  const s = session({ champDeBataille: [bleu('alchimiste'), bleu('boulanger')] });
+  const ouverte = commencerPivoter(s, 'alchimiste#x', rng());
+  const apres = commencerPivoter(ouverte, 'boulanger#x', rng());
+
+  assert.match(apres.erreur ?? '', /action en cours/);
+  assert.equal(apres.enCours?.libelle, 'Alchimiste'); // la question d'origine tient
+});
+
+test('le pouvoir et l’entraînement se refusent aussi pendant une question', () => {
+  const s = sessionEntrainement([bleu('fermier'), bleu('gentilhomme'), bleu('vieux')]);
+  const ouverte = conclureEntrainement(commencerEntrainement(s, 'archer', rng()));
+
+  assert.match(commencerPouvoir(ouverte, rng()).erreur ?? '', /action en cours/);
+  assert.match(commencerEntrainement(ouverte, 'soldat', rng()).erreur ?? '', /action en cours/);
+  assert.match(echangerLeGardeDuCorps(ouverte, 'fermier#x', rng()).erreur ?? '', /action en cours/);
+});
+
+// ── Échange du Garde du corps ───────────────────────────────────────────────
+
+test('une carte en jeu prend la place du Garde du corps, qui redescend', () => {
+  const s = session({ champDeBataille: [bleu('fermier')] });
+  const ancien = s.partie.gardeDuCorps;
+  const apres = echangerLeGardeDuCorps(s, 'fermier#x', rng());
+
+  assert.equal(apres.erreur, null);
+  assert.equal(apres.partie.gardeDuCorps?.instanceId, 'fermier#x');
+  assert.equal(apres.partie.champDeBataille[0]?.instanceId, ancien?.instanceId);
+  assert.equal(apres.partie.gardeDuCorpsEchange, true);
+});
+
+test('l’action GARDE_DU_CORPS de la carte s’exécute, questions comprises', () => {
+  // Oracle : « quand cette carte devient Garde du corps, générer 1 vision ».
+  const s = session({
+    champDeBataille: [bleu('oracle')],
+    pisteEnnemi: [auxPortes('gob'), null, null],
+  });
+  const ouverte = echangerLeGardeDuCorps(s, 'oracle#x', rng());
+
+  assert.equal(ouverte.enCours?.genre, 'GARDE_DU_CORPS');
+  assert.equal(demandeCourante(ouverte)?.genre, 'CASES_PISTE');
+
+  const apres = repondreDemande(ouverte, ['0'], rng());
+  assert.equal(apres.partie.gardeDuCorps?.instanceId, 'oracle#x');
+  assert.equal(apres.partie.pisteEnnemi[0]?.revele, true);
+});
+
+test('un second échange dans la même phase est refusé', () => {
+  const s = session({ champDeBataille: [bleu('fermier'), bleu('gentilhomme')] });
+  const apres = echangerLeGardeDuCorps(echangerLeGardeDuCorps(s, 'fermier#x', rng()), 'gentilhomme#x', rng());
+
+  assert.match(apres.erreur ?? '', /déjà été échangé/);
+});
+
+test('échanger contre une carte déjà activée est refusé', () => {
+  const s = session({ champDeBataille: [bleu('boulanger')] });
+  const activee = commencerPivoter(s, 'boulanger#x', rng());
+  const apres = echangerLeGardeDuCorps(activee, 'boulanger#x', rng());
+
+  assert.match(apres.erreur ?? '', /déjà activée/);
+});
+
+test('échanger contre une carte absente du Champ de bataille donne un message', () => {
+  assert.match(echangerLeGardeDuCorps(session(), 'fantome#x', rng()).erreur ?? '', /absente/);
 });
 
 // ── Combat des Boss ─────────────────────────────────────────────────────────

@@ -15,6 +15,9 @@ import {
   commencerPivoter,
   commencerPouvoir,
   commencerEntrainement,
+  conclureEntrainement,
+  renoncerALEntrainement,
+  echangerLeGardeDuCorps,
   revelerProchainEnnemi,
   resoudreLeCombat,
   engagerLeBoss,
@@ -58,6 +61,7 @@ function afficher() {
     demande,
     erreur: session.erreur,
     tentativeBoss: session.tentativeBoss,
+    entrainementEngage: session.entrainementEngage !== null,
     ...(session.enCours ? { contexte: session.enCours.libelle } : {}),
   });
 
@@ -93,6 +97,15 @@ racine.addEventListener('click', (evenement) => {
       break;
     case 'entrainer':
       appliquer(commencerEntrainement(session, declencheur.dataset['dore'] ?? '', rng));
+      break;
+    case 'conclure-entrainement':
+      appliquer(conclureEntrainement(session));
+      break;
+    case 'renoncer-entrainement':
+      appliquer(renoncerALEntrainement(session));
+      break;
+    case 'garde':
+      appliquer(echangerLeGardeDuCorps(session, declencheur.dataset['id'] ?? '', rng));
       break;
     case 'reveler':
       appliquer(revelerProchainEnnemi(session, rng));
